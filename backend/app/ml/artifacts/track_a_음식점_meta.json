@@ -1,0 +1,26 @@
+{
+  "model_name": "random_forest",
+  "feature_columns": [
+    "총방문인구",
+    "구총인구수",
+    "동일업종_경쟁업체수",
+    "동일업종_전체폐업률"
+  ],
+  "window_days": 1095,
+  "metrics": {
+    "logistic_regression": {
+      "accuracy": 0.5110255175734232,
+      "auc": 0.5302121534044082,
+      "precision": 0.21184382589202316,
+      "recall": 0.5689914701455093
+    },
+    "random_forest": {
+      "accuracy": 0.6013480982185845,
+      "auc": 0.6564370374958686,
+      "precision": 0.2702760539268136,
+      "recall": 0.6337180130456598
+    }
+  },
+  "n_samples": 51921,
+  "positive_rate": 0.19186841547735983
+}

@@ -134,6 +134,17 @@ class ScoreWeights(BaseModel):
     수익성: float
 
 
+class TrackAPrediction(BaseModel):
+    """PRD 3.3 Track A: 실제 라벨(인허가일자/폐업일자)로 학습한 폐업위험 예측.
+    현재 '음식점(한식)'만 실제 라벨이 있어 학습됨 — 다른 업종은 available=False."""
+
+    available: bool = Field(..., description="이 업종에 실제 라벨로 학습된 Track A 모델이 있는지")
+    closure_risk_3yr: float | None = Field(
+        None, ge=0, le=1, description="3년 내 폐업 확률 예측치(0~1). available=False면 None"
+    )
+    model_name: str | None = Field(None, description="사용된 모델 이름 (예: random_forest)")
+
+
 class ScoreResult(BaseModel):
     total_score: int = Field(..., ge=0, le=100, description="0~100 생존/성공 스코어")
     breakdown: ScoreBreakdown
@@ -143,6 +154,10 @@ class ScoreResult(BaseModel):
     )
     is_placeholder: bool = Field(
         False, description="True면 고정값(스코어링 로직 미구현 상태)."
+    )
+    track_a: TrackAPrediction = Field(
+        default_factory=lambda: TrackAPrediction(available=False),
+        description="PRD 3.3 Track A 예측 (실제 라벨 학습 모델이 있는 업종만 채워짐)",
     )
 
 
