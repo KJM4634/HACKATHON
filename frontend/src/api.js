@@ -16,3 +16,19 @@ export async function fetchAnalyze(regionId, category) {
   if (!res.ok) throw new Error(`분석 실패: ${res.status}`)
   return res.json()
 }
+
+export async function fetchRegions() {
+  const res = await fetch(`${API_BASE}/api/regions`)
+  if (!res.ok) throw new Error(`지역 목록 조회 실패: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchReport(regionIds, category) {
+  const res = await fetch(`${API_BASE}/api/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ region_ids: regionIds, category }),
+  })
+  if (!res.ok) throw new Error(`리포트 생성 실패: ${res.status}`)
+  return res.json()
+}

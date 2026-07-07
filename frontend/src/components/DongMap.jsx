@@ -14,13 +14,23 @@ const BASE_STYLE = {
   fillOpacity: 0.45,
 }
 
-function DongMap({ category }) {
+const HIGHLIGHT_STYLE = {
+  color: "#2a78d6",
+  weight: 3,
+}
+
+function DongMap({ category, onRegionClick, highlightRegionIds }) {
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
   const geoLayerRef = useRef(null)
   const scoresRef = useRef({})
+  const highlightRef = useRef(new Set())
+  const onRegionClickRef = useRef(onRegionClick)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+
+  // 이벤트 핸들러는 지도 생성 시 1회만 등록되므로, 최신 콜백을 ref로 따라가게 한다
+  onRegionClickRef.current = onRegionClick
 
   // 지도 + GeoJSON 레이어는 한 번만 만든다
   useEffect(() => {
@@ -46,13 +56,13 @@ function DongMap({ category }) {
         const layer = L.geoJSON(geojson, {
           style: () => ({ ...BASE_STYLE, fillColor: NO_DATA_COLOR }),
           onEachFeature: (feature, lyr) => {
+            const regionId = feature.properties.adm_cd2
             lyr.on("mouseover", () => lyr.setStyle({ weight: 2.5 }))
-            lyr.on("mouseout", () => lyr.setStyle({ weight: BASE_STYLE.weight }))
+            lyr.on("mouseout", () =>
+              lyr.setStyle(highlightRef.current.has(regionId) ? HIGHLIGHT_STYLE : { weight: BASE_STYLE.weight })
+            )
             lyr.on("click", () => {
-              const regionId = feature.properties.adm_cd2
-              const info = scoresRef.current[regionId]
-              // eslint-disable-next-line no-console
-              console.log("[지역 클릭]", feature.properties.adm_nm, info ?? "점수 없음(카테고리 미조회)")
+              onRegionClickRef.current?.(regionId, feature.properties.adm_nm)
             })
           },
         }).addTo(map)
@@ -99,6 +109,17 @@ function DongMap({ category }) {
       cancelled = true
     }
   }, [category])
+
+  // Top3 추천 결과가 나오면 해당 행정동 테두리를 강조 표시한다
+  useEffect(() => {
+    highlightRef.current = new Set(highlightRegionIds ?? [])
+    const layer = geoLayerRef.current
+    if (!layer) return
+    layer.eachLayer((lyr) => {
+      const regionId = lyr.feature.properties.adm_cd2
+      lyr.setStyle(highlightRef.current.has(regionId) ? HIGHLIGHT_STYLE : { weight: BASE_STYLE.weight })
+    })
+  }, [highlightRegionIds])
 
   return (
     <div className="dong-map-wrap">

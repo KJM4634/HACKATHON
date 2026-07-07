@@ -51,6 +51,46 @@ def _to_region_id(sanggabu_code) -> str:
 
 
 @lru_cache
+def _empty_sanggabu() -> pd.DataFrame:
+    return get_sanggabu_busan().iloc[0:0]
+
+
+@lru_cache
+def _sanggabu_grouped_by_dong_for_keyword(keyword: str) -> dict:
+    """get_competitors()가 매 지역 요청마다 13만 행 전체에 str.contains를 다시 돌리던 것
+    (206개 행정동 x 매 요청)을 막기 위해, 키워드별로 한 번만 필터링 + groupby해서 캐시한다
+    (_closure_stats_by_dong_and_uptae와 같은 패턴). 키워드 종류가 4개뿐이라 캐시 4개면 끝."""
+    sanggabu = get_sanggabu_busan()
+    matched = sanggabu[sanggabu["표준산업분류명"].str.contains(keyword, na=False)]
+    # dict(matched.groupby(...))는 안 됨 — DataFrameGroupBy에 dict-like로 오인되는
+    # .keys 속성(그루핑 키 스펙, 문자열)이 있어 "'str' object is not callable"로 터진다
+    return {code: group for code, group in matched.groupby("행정동코드")}
+
+
+@lru_cache
+def _closure_stats_by_dong_and_uptae() -> pd.DataFrame:
+    """(행정동코드,업태구분명) -> 영업중/최근폐업/최근개업 집계.
+
+    get_closure_stats()가 행정동 하나당 13만 행 전체를 다시 스캔하던 것(206개
+    행정동 x 매 요청마다 반복 -> /api/scores?category=음식점이 ~10초 걸림)을
+    막기 위해 전체를 한 번만 groupby해서 캐시한다(get_restaurants_with_admin_dong의
+    KDTree 최적화와 같은 패턴)."""
+    df = get_restaurants_with_admin_dong()
+    with_dong = df[df["행정동코드"].notna()].copy()
+    with_dong["행정동코드"] = with_dong["행정동코드"].astype("int64")
+
+    cutoff = pd.Timestamp.now() - pd.Timedelta(days=_RECENT_CLOSURE_WINDOW_DAYS)
+    폐업일자 = pd.to_datetime(with_dong["폐업일자"], errors="coerce")
+    인허가일자 = pd.to_datetime(with_dong["인허가일자"], errors="coerce")
+
+    with_dong["_active"] = with_dong["영업상태명"] == "영업/정상"
+    with_dong["_closed_recent"] = (with_dong["영업상태명"] == "폐업") & (폐업일자 >= cutoff)
+    with_dong["_opened_recent"] = 인허가일자 >= cutoff
+
+    return with_dong.groupby(["행정동코드", "업태구분명"])[["_active", "_closed_recent", "_opened_recent"]].sum()
+
+
+@lru_cache
 def _region_lookup() -> pd.DataFrame:
     """행정동코드(8자리) -> 행정동명/시군구명/중심좌표."""
     sanggabu = get_sanggabu_busan()
@@ -112,10 +152,8 @@ class LocalDataProvider(DataProvider):
         code8 = _to_sanggabu_code(region_id)
         keyword = CATEGORY_TO_SANGGABU_KEYWORD.get(category, category)
 
-        sanggabu = get_sanggabu_busan()
-        matched = sanggabu[
-            (sanggabu["행정동코드"] == code8) & sanggabu["표준산업분류명"].str.contains(keyword, na=False)
-        ]
+        groups = _sanggabu_grouped_by_dong_for_keyword(keyword)
+        matched = groups.get(code8, _empty_sanggabu())
 
         sample = [
             CompetitorBusiness(
@@ -145,28 +183,20 @@ class LocalDataProvider(DataProvider):
             )
 
         code8 = _to_sanggabu_code(region_id)
-        df = get_restaurants_with_admin_dong()
-
-        with_dong = df[df["행정동코드"].notna()]
-        sub = with_dong[
-            (with_dong["행정동코드"].astype("int64") == code8) & (with_dong["업태구분명"] == uptae)
-        ]
-
-        active = int((sub["영업상태명"] == "영업/정상").sum())
-        cutoff = pd.Timestamp.now() - pd.Timedelta(days=_RECENT_CLOSURE_WINDOW_DAYS)
-        폐업일자 = pd.to_datetime(sub["폐업일자"], errors="coerce")
-        인허가일자 = pd.to_datetime(sub["인허가일자"], errors="coerce")
-        closed_recent = int(((sub["영업상태명"] == "폐업") & (폐업일자 >= cutoff)).sum())
-        opened_recent = int((인허가일자 >= cutoff).sum())
+        grouped = _closure_stats_by_dong_and_uptae()
+        try:
+            active, closed_recent, opened_recent = grouped.loc[(code8, uptae)]
+        except KeyError:
+            active, closed_recent, opened_recent = 0, 0, 0
 
         denom = active + closed_recent
         rate = round(closed_recent / denom * 100, 1) if denom > 0 else 0.0
 
         return ClosureStats(
             업태구분명=uptae,
-            영업중_점포수=active,
-            최근1년_신규개업_수=opened_recent,
-            최근1년_폐업_수=closed_recent,
+            영업중_점포수=int(active),
+            최근1년_신규개업_수=int(opened_recent),
+            최근1년_폐업_수=int(closed_recent),
             폐업률=rate,
             data_available=True,
         )
