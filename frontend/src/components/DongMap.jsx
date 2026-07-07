@@ -11,7 +11,7 @@ const BOUNDARIES_URL = "/busan_dong_boundaries.geojson"
 const BASE_STYLE = {
   color: "#52514e",
   weight: 1,
-  fillOpacity: 0.75,
+  fillOpacity: 0.45,
 }
 
 function DongMap({ category }) {
