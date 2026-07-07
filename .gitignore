@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+.vite/
+
+# Env secrets
+.env
+.env.*
+!.env.example
+
+# Local DB
+*.db
+*.sqlite3
+
+# ---- 원본 공공데이터 (대용량, git 미포함 — data_inventory.md에 목록/출처 기록) ----
+/*.csv
+/*.xlsx
+/*.docx
+/부울경_일반음식점표준데이터/
+/부울경_행정동별_주민등록_인구_및_세대현황/
+/소상공인시장진흥공단_상가(상권)정보/
+/_incomplete_backup_1000row/

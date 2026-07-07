@@ -1,0 +1,67 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar .logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.topbar-controls {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.main-layout {
+  flex: 1;
+  display: flex;
+}
+
+.map-area {
+  flex: 1 1 70%;
+  display: flex;
+}
+
+.map-placeholder {
+  flex: 1;
+  margin: 16px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.side-panel {
+  flex: 0 0 320px;
+  border-left: 1px solid var(--border);
+  padding: 16px;
+  text-align: left;
+  overflow-y: auto;
+}
+
+.side-panel h2 {
+  margin-top: 24px;
+}
+
+.side-panel h2:first-child {
+  margin-top: 0;
+}
+
+.placeholder-text {
+  color: var(--text);
+  font-size: 14px;
+}
