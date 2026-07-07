@@ -16,6 +16,8 @@
 }
 
 .topbar .logo {
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: 19px;
   font-weight: 700;
   color: var(--text-primary);
@@ -24,6 +26,7 @@
 
 .topbar-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-left: auto;
 }
@@ -117,4 +120,40 @@
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.6;
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .topbar-controls {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .topbar-controls input {
+    width: auto;
+    flex: 1 1 120px;
+    min-width: 0;
+  }
+
+  .main-layout {
+    flex-direction: column;
+  }
+
+  .map-area {
+    flex: 1 1 auto;
+    min-height: 50vh;
+    padding: 12px;
+  }
+
+  .side-panel {
+    flex: 1 1 auto;
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border-ring);
+    max-height: none;
+  }
 }
