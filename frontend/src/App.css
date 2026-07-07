@@ -2,59 +2,90 @@
   display: flex;
   flex-direction: column;
   min-height: 100svh;
+  background: var(--surface-2);
 }
 
 .topbar {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-ring);
+  box-shadow: 0 1px 0 var(--gridline);
 }
 
 .topbar .logo {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
-  color: var(--text-h);
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
 }
 
 .topbar-controls {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-left: auto;
+}
+
+.topbar-controls select,
+.topbar-controls input {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-ring);
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+
+.topbar-controls select {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.topbar-controls select:focus,
+.topbar-controls input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.topbar-controls input {
+  width: 220px;
+  color: var(--text-muted);
+}
+
+.topbar-controls input::placeholder {
+  color: var(--text-muted);
 }
 
 .main-layout {
   flex: 1;
   display: flex;
+  min-height: 0;
 }
 
 .map-area {
   flex: 1 1 70%;
   display: flex;
-}
-
-.map-placeholder {
-  flex: 1;
-  margin: 16px;
-  border: 2px dashed var(--border);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text);
+  padding: 16px;
+  min-height: 0;
 }
 
 .side-panel {
   flex: 0 0 320px;
-  border-left: 1px solid var(--border);
-  padding: 16px;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border-ring);
+  padding: 20px;
   text-align: left;
   overflow-y: auto;
 }
 
 .side-panel h2 {
-  margin-top: 24px;
+  font-size: 15px;
+  margin-top: 28px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--gridline);
 }
 
 .side-panel h2:first-child {
@@ -62,6 +93,7 @@
 }
 
 .placeholder-text {
-  color: var(--text);
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
 }

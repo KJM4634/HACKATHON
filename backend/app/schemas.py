@@ -156,3 +156,18 @@ class AnalyzeResponse(BaseModel):
     category: str
     score: ScoreResult
     market_data: MarketData
+
+
+class RegionScoreSummary(BaseModel):
+    """지도 색상 표시용 요약 — 지역 하나당 가벼운 점수 정보만."""
+
+    region_id: str
+    total_score: int
+    is_gu_level_estimate: bool = Field(
+        ..., description="True면 배후인구가 구 단위 추정치 — 지도에서 낮은 신뢰도로 표시"
+    )
+
+
+class BulkScoreResponse(BaseModel):
+    category: str
+    scores: list[RegionScoreSummary]
