@@ -1,0 +1,134 @@
+"""
+도메인 모델 정의.
+
+필드명은 data_inventory.md에서 확인한 실제 원본 데이터의 컬럼명을 최대한 그대로 사용한다.
+(4단계에서 MockDataProvider -> LocalDataProvider로 교체할 때 데이터 매핑 코드를 최소화하기 위함)
+
+매핑 대상 원본 데이터:
+- PopulationStats            <- 부울경_행정동별_주민등록_인구_및_세대현황/*.csv (시군구 단위)
+- FootTrafficByHour          <- 일별 행정동 시간 생활인구 월별 일평균.csv
+- ConsumptionByHour          <- 일별 행정동 시간 소비매출 월별 일평균.csv
+- ConsumptionByCategory      <- 일별 행정동 업종 소비매출 월별 일평균.csv
+- CompetitorBusiness         <- 소상공인시장진흥공단_상가(상권)정보_*.csv
+- ClosureStats               <- 부울경_일반음식점표준데이터/식품_일반음식점_*.csv (인허가일자/폐업일자/영업상태명 집계)
+"""
+
+from pydantic import BaseModel, Field
+
+
+class RegionInfo(BaseModel):
+    region_id: str = Field(..., description="서비스 내부 지역 식별자 (예: seomyeon)")
+    행정동코드: str = Field(..., description="행정안전부 행정동코드 (생활인구/소비매출 데이터 조인 키)")
+    행정동명: str = Field(..., description="예: '부산진구 부전2동'")
+    시도명: str
+    시군구명: str
+    위도: float
+    경도: float
+
+
+class PopulationStats(BaseModel):
+    """시군구 단위 주민등록 인구·세대 현황 (행정동보다 큰 단위임에 주의)."""
+
+    기준연도: int
+    총인구수: int
+    세대수: int
+    세대당_인구: float
+    남자_인구수: int
+    여자_인구수: int
+
+
+class FootTrafficByHour(BaseModel):
+    """시간대별 생활인구 (통신사 신호데이터 기반)."""
+
+    시간대: str = Field(..., description="'00시'~'23시'")
+    평균주거인구수: int
+    평균직장인구수: int
+    평균방문인구수: int
+
+
+class ConsumptionByHour(BaseModel):
+    """시간대별 카드 소비매출."""
+
+    시간대: str
+    평균이용금액: int
+    평균이용건수: int
+
+
+class ConsumptionByCategory(BaseModel):
+    """업종대분류별 카드 소비매출."""
+
+    업종대분류: str
+    평균이용금액: int
+    평균이용건수: int
+
+
+class CompetitorBusiness(BaseModel):
+    """경쟁업체 개별 레코드 (지도 마커 표시용 샘플)."""
+
+    상호명: str
+    상권업종대분류명: str
+    상권업종중분류명: str
+    상권업종소분류명: str | None = None
+    표준산업분류명: str
+    경도: float
+    위도: float
+    도로명주소: str | None = None
+
+
+class CompetitorSummary(BaseModel):
+    """업종 밀집도(경쟁강도) 산출에 사용할 경쟁업체 요약."""
+
+    target_category: str = Field(..., description="사용자가 선택한 업종")
+    total_count: int = Field(..., description="해당 행정동 내 동일업종 전체 업체 수 (밀집도 지표)")
+    sample: list[CompetitorBusiness] = Field(default_factory=list, description="지도 표시용 샘플 (최대 20개)")
+
+
+class ClosureStats(BaseModel):
+    """개폐업 현황 (경쟁강도·최근 폐업률 산출용)."""
+
+    업태구분명: str
+    영업중_점포수: int
+    최근1년_신규개업_수: int
+    최근1년_폐업_수: int
+    폐업률: float = Field(..., description="최근1년_폐업_수 / (영업중_점포수 + 최근1년_폐업_수) * 100, 단위 %")
+
+
+class MarketData(BaseModel):
+    """DataProvider가 반환하는 지역+업종 단위 상권 데이터 묶음. 스코어링 엔진과 LLM 리포트의 입력 재료."""
+
+    region: RegionInfo
+    population: PopulationStats
+    foot_traffic: list[FootTrafficByHour]
+    consumption_by_hour: list[ConsumptionByHour]
+    consumption_by_category: list[ConsumptionByCategory]
+    competitors: CompetitorSummary
+    closure_stats: ClosureStats
+
+
+class ScoreBreakdown(BaseModel):
+    """PRD 3.3 Track B 가중합 항목. 4단계에서 실제 산출 로직으로 대체될 자리."""
+
+    배후수요: int = Field(..., ge=0, le=100)
+    경쟁강도: int = Field(..., ge=0, le=100)
+    접근성: int = Field(..., ge=0, le=100)
+    수익성: int = Field(..., ge=0, le=100)
+
+
+class ScoreResult(BaseModel):
+    total_score: int = Field(..., ge=0, le=100, description="0~100 생존/성공 스코어")
+    breakdown: ScoreBreakdown
+    is_placeholder: bool = Field(
+        True, description="True면 고정값(스코어링 로직 미구현). 4단계에서 제거될 플래그."
+    )
+
+
+class AnalyzeRequest(BaseModel):
+    region_id: str = Field(..., description="지역 식별자 (현재는 Mock 프리셋 목록 중 하나)")
+    category: str = Field(..., description="사용자가 선택한 업종 (예: '카페')")
+
+
+class AnalyzeResponse(BaseModel):
+    region: RegionInfo
+    category: str
+    score: ScoreResult
+    market_data: MarketData
