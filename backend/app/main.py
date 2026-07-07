@@ -1,7 +1,10 @@
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.analyze import router as analyze_router
+load_dotenv()  # backend/.env 에서 GEMINI_API_KEY 등을 읽어옴
+
+from app.api.analyze import router as analyze_router  # noqa: E402
 
 app = FastAPI(title="여기차려 API")
 

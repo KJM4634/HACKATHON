@@ -171,3 +171,19 @@ class RegionScoreSummary(BaseModel):
 class BulkScoreResponse(BaseModel):
     category: str
     scores: list[RegionScoreSummary]
+
+
+class ReportRequest(BaseModel):
+    region_ids: list[str] = Field(
+        ..., min_length=1, max_length=10, description="비교할 후보 지역 (1~10곳)"
+    )
+    category: str = Field(..., description="사용자가 선택한 업종 (예: '카페')")
+
+
+class ReportResponse(BaseModel):
+    category: str
+    candidates: list[AnalyzeResponse] = Field(..., description="LLM에 넘긴 후보별 점수+원자료")
+    report_text: str
+    is_fallback: bool = Field(
+        ..., description="True면 LLM 호출 실패/시간초과로 점수만으로 만든 기본 템플릿 리포트"
+    )

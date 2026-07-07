@@ -2,16 +2,34 @@ from fastapi import APIRouter, HTTPException
 
 from app.data_provider import get_data_provider
 from app.data_provider.base import DataProvider
+from app.llm.report import generate_report
 from app.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
     BulkScoreResponse,
     RegionInfo,
     RegionScoreSummary,
+    ReportRequest,
+    ReportResponse,
 )
 from app.scoring import compute_score
 
 router = APIRouter(prefix="/api", tags=["analyze"])
+
+
+def _analyze_one(provider: DataProvider, region_id: str, category: str) -> AnalyzeResponse:
+    try:
+        market_data = provider.get_market_data(region_id, category)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    score = compute_score(market_data, category)
+    return AnalyzeResponse(
+        region=market_data.region,
+        category=category,
+        score=score,
+        market_data=market_data,
+    )
 
 
 @router.get("/regions", response_model=list[RegionInfo])
@@ -44,17 +62,21 @@ def bulk_scores(category: str) -> BulkScoreResponse:
 @router.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     provider: DataProvider = get_data_provider()
+    return _analyze_one(provider, req.region_id, req.category)
 
-    try:
-        market_data = provider.get_market_data(req.region_id, req.category)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
 
-    score = compute_score(market_data, req.category)
+@router.post("/report", response_model=ReportResponse)
+def report(req: ReportRequest) -> ReportResponse:
+    """PRD 3.4: 후보 지역 여러 곳을 분석해 Top3 추천 입지 + 이유 + 리스크를
+    자연어 리포트로 만든다. LLM 실패 시 점수만으로 만든 기본 템플릿으로 대체."""
+    provider: DataProvider = get_data_provider()
+    candidates = [_analyze_one(provider, region_id, req.category) for region_id in req.region_ids]
 
-    return AnalyzeResponse(
-        region=market_data.region,
+    report_text, is_fallback = generate_report(req.category, candidates)
+
+    return ReportResponse(
         category=req.category,
-        score=score,
-        market_data=market_data,
+        candidates=candidates,
+        report_text=report_text,
+        is_fallback=is_fallback,
     )
