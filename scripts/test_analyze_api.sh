@@ -22,18 +22,21 @@ check "/health" 200 "$code"
 code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/regions")
 check "/api/regions" 200 "$code"
 
-for region in seomyeon nampo haeundae gwangalli; do
+# region_id는 10자리 행정동코드 (LocalDataProvider 기준. 서면/남포동/해운대/광안리)
+for region in 2623052000:서면 2611058000:남포동 2635051000:해운대 2650077000:광안리; do
+  code_id="${region%%:*}"
+  name="${region##*:}"
   for category in 카페 음식점 편의점 미용실; do
     code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/analyze" \
       -H "Content-Type: application/json" \
-      -d "{\"region_id\":\"$region\",\"category\":\"$category\"}")
-    check "/api/analyze ($region, $category)" 200 "$code"
+      -d "{\"region_id\":\"$code_id\",\"category\":\"$category\"}")
+    check "/api/analyze ($name, $category)" 200 "$code"
   done
 done
 
 code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/analyze" \
   -H "Content-Type: application/json" \
-  -d '{"region_id":"seoul","category":"카페"}')
+  -d '{"region_id":"9999999999","category":"카페"}')
 check "/api/analyze (invalid region_id -> 404)" 404 "$code"
 
 if [ "$FAIL" -eq 0 ]; then

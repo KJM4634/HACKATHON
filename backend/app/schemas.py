@@ -35,6 +35,9 @@ class PopulationStats(BaseModel):
     세대당_인구: float
     남자_인구수: int
     여자_인구수: int
+    is_gu_level_estimate: bool = Field(
+        True, description="True면 행정동 실측치가 아니라 소속 시군구 전체 값을 그대로 적용한 추정치"
+    )
 
 
 class FootTrafficByHour(BaseModel):
@@ -91,6 +94,11 @@ class ClosureStats(BaseModel):
     최근1년_신규개업_수: int
     최근1년_폐업_수: int
     폐업률: float = Field(..., description="최근1년_폐업_수 / (영업중_점포수 + 최근1년_폐업_수) * 100, 단위 %")
+    data_available: bool = Field(
+        True,
+        description="False면 일반음식점표준데이터가 이 업종을 다루지 않아(예: 카페/편의점/미용실은"
+        " 다른 인허가 카테고리) 폐업률을 계산할 수 없고 0으로 채워진 자리채움값임",
+    )
 
 
 class MarketData(BaseModel):
@@ -106,19 +114,35 @@ class MarketData(BaseModel):
 
 
 class ScoreBreakdown(BaseModel):
-    """PRD 3.3 Track B 가중합 항목. 4단계에서 실제 산출 로직으로 대체될 자리."""
+    """PRD 3.3 Track B 가중합 항목별 0~100 정규화 점수.
+
+    접근성은 대중교통/집객시설 근접도 데이터가 없어 계산하지 않는다(None).
+    실제로 적용된 가중치는 ScoreResult.weights_used를 봐야 한다."""
 
     배후수요: int = Field(..., ge=0, le=100)
     경쟁강도: int = Field(..., ge=0, le=100)
-    접근성: int = Field(..., ge=0, le=100)
+    접근성: int | None = Field(None, ge=0, le=100, description="데이터 없어 미계산")
     수익성: int = Field(..., ge=0, le=100)
+
+
+class ScoreWeights(BaseModel):
+    """이번 산출에 실제로 적용된 가중치 (합계 1.0). PRD 원안은 0.35/0.3/0.2/0.15."""
+
+    배후수요: float
+    경쟁강도: float
+    접근성: float
+    수익성: float
 
 
 class ScoreResult(BaseModel):
     total_score: int = Field(..., ge=0, le=100, description="0~100 생존/성공 스코어")
     breakdown: ScoreBreakdown
+    weights_used: ScoreWeights
+    data_limitations: list[str] = Field(
+        default_factory=list, description="데이터 부족으로 근사/제외/재분배한 지표에 대한 설명"
+    )
     is_placeholder: bool = Field(
-        True, description="True면 고정값(스코어링 로직 미구현). 4단계에서 제거될 플래그."
+        False, description="True면 고정값(스코어링 로직 미구현 상태)."
     )
 
 
