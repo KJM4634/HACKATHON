@@ -79,8 +79,29 @@ def _leave_one_out_accuracy(sanggabu: pd.DataFrame, sigungu: str, legal_dong: st
     [("부산진구", "부전동"), ("해운대구", "우동"), ("수영구", "광안동")],
 )
 def test_nearest_match_accuracy_on_demo_target_dongs(sanggabu_busan, sigungu, legal_dong):
-    """서면/해운대/광안리처럼 분할된 지역에서 최근접 매칭 정확도가 95% 이상이어야 한다.
+    """서면/해운대/광안리처럼 분할된 지역에서, 지오데식 거리(Geod.inv) 기반의
+    독립적인 leave-one-out 계산이 95% 이상 정확해야 한다. 이건 실제 구현(KDTree)과
+    무관한 정답지 역할 — 아래 test_kdtree_matches_geod_leave_one_out에서 실제
+    구현이 이 정답지와 일치하는지 비교한다.
 
     2026-07-08 실측: 부전동 100.0%, 우동 100.0%, 광안동 99.7%."""
     accuracy = _leave_one_out_accuracy(sanggabu_busan, sigungu, legal_dong)
     assert accuracy >= 0.95, f"{sigungu} {legal_dong} 정확도 {accuracy:.1%} — 95% 미달"
+
+
+@pytest.mark.parametrize(
+    "sigungu,legal_dong",
+    [("부산진구", "부전동"), ("해운대구", "우동"), ("수영구", "광안동")],
+)
+def test_kdtree_matches_geod_leave_one_out(sanggabu_busan, mapper, sigungu, legal_dong):
+    """KDTree 최적화(scipy.spatial.KDTree) 이후에도 실제 배정 로직의 leave-one-out
+    정확도가, 최적화 전 지오데식 거리 기반 정확도와 거의 같아야 한다 (오차 1%p 이내).
+    두 계산은 독립 구현이라 이 값이 크게 벌어지면 위경도 보정(cos(mean_lat))이
+    실제로 문제가 된다는 뜻."""
+    geod_accuracy = _leave_one_out_accuracy(sanggabu_busan, sigungu, legal_dong)
+    kdtree_accuracy = mapper.leave_one_out_accuracy(sigungu, legal_dong)
+
+    assert kdtree_accuracy is not None
+    assert abs(kdtree_accuracy - geod_accuracy) < 0.01, (
+        f"{sigungu} {legal_dong}: KDTree={kdtree_accuracy:.1%} vs Geod={geod_accuracy:.1%}"
+    )

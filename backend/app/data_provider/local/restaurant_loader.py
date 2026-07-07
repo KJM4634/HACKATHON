@@ -49,31 +49,51 @@ def get_restaurants_wgs84() -> pd.DataFrame:
     return df
 
 
-def _assign_admin_dong_busan(row: pd.Series, mapper: LegalToAdminDongMapper) -> pd.Series:
-    parsed = parse_sigungu_and_legal_dong(row["지번주소"], mapper)
-    if parsed is None:
-        parsed = parse_sigungu_and_legal_dong(row["도로명주소"], mapper)
-    if parsed is None:
-        return pd.Series({"행정동코드": None, "행정동명": None})
-
-    sigungu, legal_dong = parsed
-    admin = mapper.assign(sigungu, legal_dong, row["경도"], row["위도"])
-    if admin is None:
-        return pd.Series({"행정동코드": None, "행정동명": None})
-    return pd.Series({"행정동코드": admin.행정동코드, "행정동명": admin.행정동명})
+def _parse_row(row: pd.Series, mapper: LegalToAdminDongMapper) -> tuple[str, str] | None:
+    return parse_sigungu_and_legal_dong(row["지번주소"], mapper) or parse_sigungu_and_legal_dong(
+        row["도로명주소"], mapper
+    )
 
 
 @lru_cache
 def get_restaurants_with_admin_dong() -> pd.DataFrame:
-    """get_restaurants_wgs84() + 행정동코드/행정동명 (현재는 부산만 배정)."""
+    """get_restaurants_wgs84() + 행정동코드/행정동명 (현재는 부산만 배정).
+
+    주소 파싱은 행 단위(문자열 처리라 어차피 벡터화하기 어렵지만 130k행에
+    0.3초 수준으로 이미 빠름)로 하고, 실제 좌표 최근접 매칭은 법정동 그룹별로
+    한 번씩만 KDTree에 질의한다(LegalToAdminDongMapper.assign_many) —
+    행 단위로 개별 질의하던 이전 방식보다 수십 배 빠르다.
+    """
     df = get_restaurants_wgs84().copy()
     df["행정동코드"] = None
     df["행정동명"] = None
 
-    busan_mask = df["시도명"] == "부산광역시"
+    busan = df[df["시도명"] == "부산광역시"]
     mapper = LegalToAdminDongMapper(get_sanggabu_busan())
 
-    assigned = df.loc[busan_mask].apply(_assign_admin_dong_busan, axis=1, mapper=mapper)
-    df.loc[busan_mask, ["행정동코드", "행정동명"]] = assigned[["행정동코드", "행정동명"]]
+    parsed = busan.apply(_parse_row, axis=1, mapper=mapper)
+
+    for key, group_idx in parsed.groupby(parsed).groups.items():
+        if key is None:
+            continue
+        sigungu, legal_dong = key
+
+        unambiguous = mapper.lookup_unambiguous(sigungu, legal_dong)
+        if unambiguous is not None:
+            df.loc[group_idx, "행정동코드"] = unambiguous.행정동코드
+            df.loc[group_idx, "행정동명"] = unambiguous.행정동명
+            continue
+
+        rows = busan.loc[group_idx]
+        has_coord = rows["경도"].notna() & rows["위도"].notna()
+        coord_idx = rows.index[has_coord]
+        if coord_idx.empty:
+            continue
+
+        codes, names = mapper.assign_many(
+            sigungu, legal_dong, rows.loc[coord_idx, "경도"].to_numpy(), rows.loc[coord_idx, "위도"].to_numpy()
+        )
+        df.loc[coord_idx, "행정동코드"] = codes
+        df.loc[coord_idx, "행정동명"] = names
 
     return df
