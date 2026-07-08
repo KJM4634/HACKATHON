@@ -68,7 +68,7 @@
   border-radius: 50%;
   border: 8px solid var(--gauge-color);
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
   gap: 2px;
 }
@@ -76,11 +76,13 @@
 .gauge-value {
   font-size: 28px;
   font-weight: 700;
+  line-height: 1;
   color: var(--text-primary);
 }
 
 .gauge-max {
   font-size: 12px;
+  line-height: 1;
   color: var(--text-muted);
 }
 
