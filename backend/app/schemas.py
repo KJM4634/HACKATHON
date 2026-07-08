@@ -186,6 +186,11 @@ class AnalyzeResponse(BaseModel):
         default_factory=list,
         description="총점이 낮을 때(app.alternatives.LOW_SCORE_THRESHOLD 이하) 채워지는 인근 대안 후보. 평소엔 빈 리스트",
     )
+    differentiation_strategy: str | None = Field(
+        None,
+        description="총점이 낮을 때 Gemini가 제안하는 차별화 전략(참고용, 확정적 조언 아님). "
+        "alternatives와 같은 조건에서만 채워지고, Gemini 실패 시에도 None(억지 대체 문구 없음)",
+    )
 
 
 class RegionScoreSummary(BaseModel):

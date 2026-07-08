@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { scoreToColor } from "../colorScale"
 import "./RegionDetailModal.css"
 
@@ -6,6 +7,8 @@ const BREAKDOWN_LABELS = [
   { key: "경쟁강도", label: "경쟁강도" },
   { key: "수익성", label: "수익성" },
 ]
+
+const WEAK_THRESHOLD = 50 // 세부점수가 이보다 낮으면 "이 지표가 약하다"로 설명
 
 // 데스크톱/태블릿에서는 AnalysisPanel과 같은 자리(우측 사이드 패널)에 그대로
 // 끼워 넣는 일반 패널이고, 모바일 너비에서만 CSS 미디어쿼리로 전체화면
@@ -50,6 +53,7 @@ function RegionDetailModal({ modal, category, onClose, onAlternativeClick }) {
 function RegionDetailContent({ candidate, reportText, isFallback, category, onAlternativeClick }) {
   const { score, region, alternatives } = candidate
   const trackA = score.track_a
+  const [lowScoreTab, setLowScoreTab] = useState("alternatives")
 
   return (
     <>
@@ -88,26 +92,50 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
       </div>
 
       {alternatives?.length > 0 && (
-        <div className="alternatives-section">
-          <h3 className="modal-subheading">
-            이 지역보다 나은 인근 대안 <span className="alternatives-criteria-badge">3km 이내 · 점수 높은 순</span>
-          </h3>
-          <p className="alternatives-caption">
-            총점 {score.total_score}점은 낮은 편이라, 같은 업종 기준 3km 이내에서 점수가 더 높은 지역을 찾아봤습니다.
-          </p>
-          <ul className="alternatives-list">
-            {alternatives.map((alt) => (
-              <li key={alt.region.region_id}>
-                <button className="alternative-card" onClick={() => onAlternativeClick(alt.region.region_id)}>
-                  <span className="alternative-name">{alt.region.행정동명}</span>
-                  <span className="alternative-distance">{alt.distance_km}km</span>
-                  <span className="alternative-score" style={{ color: scoreToColor(alt.score) }}>
-                    {alt.score}점
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+        <div className="low-score-section">
+          <div className="low-score-tabs" role="tablist">
+            <button
+              role="tab"
+              aria-selected={lowScoreTab === "alternatives"}
+              className={`low-score-tab ${lowScoreTab === "alternatives" ? "low-score-tab-active" : ""}`}
+              onClick={() => setLowScoreTab("alternatives")}
+            >
+              대안 추천
+            </button>
+            <button
+              role="tab"
+              aria-selected={lowScoreTab === "strategy"}
+              className={`low-score-tab ${lowScoreTab === "strategy" ? "low-score-tab-active" : ""}`}
+              onClick={() => setLowScoreTab("strategy")}
+            >
+              이곳에서 성공하려면
+            </button>
+          </div>
+
+          {lowScoreTab === "alternatives" && (
+            <div className="low-score-tab-panel">
+              <p className="alternatives-caption">
+                <span className="alternatives-criteria-badge">3km 이내 · 점수 높은 순</span> 총점{" "}
+                {score.total_score}점은 낮은 편이라, 같은 업종 기준 3km 이내에서 점수가 더 높은 지역을
+                찾아봤습니다.
+              </p>
+              <ul className="alternatives-list">
+                {alternatives.map((alt) => (
+                  <li key={alt.region.region_id}>
+                    <button className="alternative-card" onClick={() => onAlternativeClick(alt.region.region_id)}>
+                      <span className="alternative-name">{alt.region.행정동명}</span>
+                      <span className="alternative-distance">{alt.distance_km}km</span>
+                      <span className="alternative-score" style={{ color: scoreToColor(alt.score) }}>
+                        {alt.score}점
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {lowScoreTab === "strategy" && <SuccessStrategyPanel candidate={candidate} category={category} />}
         </div>
       )}
 
@@ -134,6 +162,72 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
       )}
     </>
   )
+}
+
+// 점수가 낮아도 "그래도 여기서 하고 싶다"는 사용자를 위한 탭. 세부지표/경쟁현황은
+// 이미 받은 데이터로 바로 계산하고(추가 요청 없음), 차별화 전략만 백엔드가 미리
+// 생성해둔 candidate.differentiation_strategy를 그대로 보여준다.
+function SuccessStrategyPanel({ candidate, category }) {
+  const { score, market_data: marketData, differentiation_strategy: strategy } = candidate
+  const reasons = buildWeaknessReasons(score.breakdown, marketData, category)
+
+  return (
+    <div className="low-score-tab-panel">
+      <div className="strategy-block">
+        <h4 className="strategy-block-title">왜 이 지역이 어려운지</h4>
+        <ul className="strategy-reasons">
+          {reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="strategy-block">
+        <h4 className="strategy-block-title">이미 있는 경쟁 가게 현황</h4>
+        <p className="strategy-competitor-info">
+          동일업종({category}) 경쟁업체 <strong>{marketData.competitors.total_count}개</strong>
+          {marketData.closure_stats.data_available ? (
+            <>
+              {" "}
+              · 최근 1년 폐업률 <strong>{marketData.closure_stats.폐업률}%</strong>
+            </>
+          ) : (
+            " · 이 업종은 폐업 이력 데이터가 없어 폐업률은 확인할 수 없습니다"
+          )}
+        </p>
+      </div>
+
+      <div className="strategy-block">
+        <h4 className="strategy-block-title">
+          차별화 전략 제안 <span className="strategy-disclaimer-badge">참고용 제안</span>
+        </h4>
+        {strategy ? (
+          <p className="strategy-text">{strategy}</p>
+        ) : (
+          <p className="strategy-unavailable">전략 제안을 생성하지 못했어요. 잠시 후 다시 열어보세요.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function buildWeaknessReasons(breakdown, marketData, category) {
+  const reasons = []
+  if (breakdown.경쟁강도 !== null && breakdown.경쟁강도 < WEAK_THRESHOLD) {
+    reasons.push(
+      `${category} ${marketData.competitors.total_count}개로 경쟁 밀집도가 높은 편입니다 (경쟁강도 ${breakdown.경쟁강도}점)`
+    )
+  }
+  if (breakdown.수익성 !== null && breakdown.수익성 < WEAK_THRESHOLD) {
+    reasons.push(`인근 매출 규모가 상대적으로 작은 편입니다 (수익성 ${breakdown.수익성}점)`)
+  }
+  if (breakdown.배후수요 !== null && breakdown.배후수요 < WEAK_THRESHOLD) {
+    reasons.push(`유동인구·배후인구가 상대적으로 적은 편입니다 (배후수요 ${breakdown.배후수요}점)`)
+  }
+  if (reasons.length === 0) {
+    reasons.push("세부 지표가 골고루 평이한 수준이라, 특별히 두드러지게 약한 지표는 없습니다.")
+  }
+  return reasons
 }
 
 export default RegionDetailModal

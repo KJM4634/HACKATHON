@@ -6,6 +6,7 @@ from app.data_provider.base import DataProvider
 from app.data_provider.local.category_mapping import CATEGORY_TO_SANGGABU_KEYWORD
 from app.llm.query_parser import parse_query
 from app.llm.report import generate_report
+from app.llm.strategy import generate_differentiation_strategy
 from app.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -99,7 +100,9 @@ def report(req: ReportRequest) -> ReportResponse:
 
     점수가 낮은(50점 이하) 후보는 include_alternatives=True일 때 같은 업종·3km
     이내에서 더 점수 높은 대안을 찾아 붙이고, Gemini가 "왜 이 지역이 아쉬운지 +
-    대안이 왜 나은지"를 비교해서 설명하게 한다.
+    대안이 왜 나은지"를 비교해서 설명하게 한다. 같은 조건에서 "그래도 여기서
+    하고 싶다"는 사용자를 위한 차별화 전략 제안(differentiation_strategy)도
+    같이 생성한다 — 실패해도 대체 문구 없이 그냥 None으로 둔다.
 
     같은 (지역 조합, 업종, include_alternatives)로 이미 성공한 리포트가 있으면
     Gemini를 다시 부르지 않고 그 결과를 그대로 돌려준다(무료 티어 쿼터 절약)."""
@@ -123,6 +126,7 @@ def report(req: ReportRequest) -> ReportResponse:
             candidate.alternatives = find_alternatives(
                 candidate.region, candidate.score.total_score, all_scores, region_by_id
             )
+            candidate.differentiation_strategy = generate_differentiation_strategy(candidate)
 
     report_text, is_fallback = generate_report(req.category, candidates)
 
