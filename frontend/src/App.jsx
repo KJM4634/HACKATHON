@@ -59,7 +59,10 @@ function App() {
           return name ? matchesRegionQuery(name, query) : false
         })
         if (candidates.length === 0) {
-          setAnalysis({ status: "error", error: `"${query}"와 일치하는 지역이 없습니다.` })
+          setAnalysis({
+            status: "error",
+            error: `"${query}"와 일치하는 지역이 없습니다. 검색창은 공식 행정동명 위주로 찾으니, 위 자연어 질의창에 "${query}에 카페 차릴 건데 어디가 좋아?"처럼 문장으로 물어보세요.`,
+          })
           return
         }
       }
