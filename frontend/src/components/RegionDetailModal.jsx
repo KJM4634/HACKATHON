@@ -7,7 +7,7 @@ const BREAKDOWN_LABELS = [
   { key: "수익성", label: "수익성" },
 ]
 
-function RegionDetailModal({ modal, category, onClose }) {
+function RegionDetailModal({ modal, category, onClose, onAlternativeClick }) {
   if (!modal.open) return null
 
   return (
@@ -32,15 +32,21 @@ function RegionDetailModal({ modal, category, onClose }) {
         )}
 
         {modal.status === "success" && (
-          <RegionDetailContent candidate={modal.candidate} reportText={modal.reportText} isFallback={modal.isFallback} category={category} />
+          <RegionDetailContent
+            candidate={modal.candidate}
+            reportText={modal.reportText}
+            isFallback={modal.isFallback}
+            category={category}
+            onAlternativeClick={onAlternativeClick}
+          />
         )}
       </div>
     </div>
   )
 }
 
-function RegionDetailContent({ candidate, reportText, isFallback, category }) {
-  const { score, region } = candidate
+function RegionDetailContent({ candidate, reportText, isFallback, category, onAlternativeClick }) {
+  const { score, region, alternatives } = candidate
   const trackA = score.track_a
 
   return (
@@ -78,6 +84,28 @@ function RegionDetailContent({ candidate, reportText, isFallback, category }) {
           <span className="breakdown-value breakdown-value-muted">데이터 없음</span>
         </div>
       </div>
+
+      {alternatives?.length > 0 && (
+        <div className="alternatives-section">
+          <h3 className="modal-subheading">이 지역보다 나은 인근 대안</h3>
+          <p className="alternatives-caption">
+            총점 {score.total_score}점은 낮은 편이라, 같은 업종 기준 3km 이내에서 점수가 더 높은 지역을 찾아봤습니다.
+          </p>
+          <ul className="alternatives-list">
+            {alternatives.map((alt) => (
+              <li key={alt.region.region_id}>
+                <button className="alternative-card" onClick={() => onAlternativeClick(alt.region.region_id)}>
+                  <span className="alternative-name">{alt.region.행정동명}</span>
+                  <span className="alternative-distance">{alt.distance_km}km</span>
+                  <span className="alternative-score" style={{ color: scoreToColor(alt.score) }}>
+                    {alt.score}점
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <h3 className="modal-subheading">AI 해설</h3>
       {isFallback && (

@@ -44,7 +44,14 @@ function AnalysisPanel({ analysis, onCardClick }) {
           <li key={candidate.region.region_id}>
             <button className="top3-card" onClick={() => onCardClick(candidate.region.region_id)}>
               <span className="top3-rank">{i + 1}</span>
-              <span className="top3-name">{candidate.region.행정동명}</span>
+              <span className="top3-name">
+                {candidate.region.행정동명}
+                {candidate.alternatives?.length > 0 && (
+                  <span className="top3-alt-badge" title="인근에 더 나은 대안이 있어요">
+                    ⚠ 대안 {candidate.alternatives.length}곳
+                  </span>
+                )}
+              </span>
               <span className="top3-score" style={{ color: scoreToColor(candidate.score.total_score) }}>
                 {candidate.score.total_score}점
               </span>

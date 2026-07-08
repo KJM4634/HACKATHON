@@ -164,7 +164,12 @@ function App() {
         </aside>
       </main>
 
-      <RegionDetailModal modal={modal} category={category} onClose={() => setModal({ open: false })} />
+      <RegionDetailModal
+        modal={modal}
+        category={category}
+        onClose={() => setModal({ open: false })}
+        onAlternativeClick={(regionId) => openRegionDetail(regionId)}
+      />
     </div>
   )
 }
