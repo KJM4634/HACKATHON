@@ -4,6 +4,7 @@ import AnalysisPanel from "./components/AnalysisPanel"
 import RegionDetailModal from "./components/RegionDetailModal"
 import QueryBar from "./components/QueryBar"
 import { fetchBulkScores, fetchRegions, fetchReport, parseQuery } from "./api"
+import { matchesRegionQuery } from "./regionAliases"
 import "./App.css"
 
 const CATEGORIES = ["카페", "음식점", "편의점", "미용실"]
@@ -53,7 +54,10 @@ function App() {
       const query = effectiveSearch.trim()
       if (query) {
         const nameById = new Map(regions.map((r) => [r.region_id, r.행정동명]))
-        candidates = candidates.filter((c) => nameById.get(c.region_id)?.includes(query))
+        candidates = candidates.filter((c) => {
+          const name = nameById.get(c.region_id)
+          return name ? matchesRegionQuery(name, query) : false
+        })
         if (candidates.length === 0) {
           setAnalysis({ status: "error", error: `"${query}"와 일치하는 지역이 없습니다.` })
           return
