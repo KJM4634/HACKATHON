@@ -16,6 +16,9 @@ function App() {
   const [analysis, setAnalysis] = useState({ status: "idle" })
   const [modal, setModal] = useState({ open: false })
   const [nlQuery, setNlQuery] = useState({ status: "idle" })
+  // modal과 분리해서 따로 든다 — onClose가 modal을 {open:false}로 통째로 갈아치우기 때문에,
+  // modal 안에 두면 팝업을 닫는 순간 대안 정보가 같이 사라져서 지도에 계속 못 보여준다.
+  const [mapConnections, setMapConnections] = useState(null)
   const skipNextResetRef = useRef(false) // 자연어 질의가 업종을 바꿀 때, 아래 idle 리셋 이펙트가 로딩 상태를 덮어쓰지 않도록
 
   useEffect(() => {
@@ -35,6 +38,7 @@ function App() {
       return
     }
     setAnalysis({ status: "idle" })
+    setMapConnections(null) // 업종이 바뀌면 이전 업종 기준 대안도 더 이상 유효하지 않음
   }, [category])
 
   async function handleAnalyze(overrideCategory, overrideSearchQuery) {
@@ -105,15 +109,22 @@ function App() {
     setModal({ open: true, status: "loading", regionId, regionName })
     try {
       const report = await fetchReport([regionId], category)
+      const candidate = report.candidates[0]
       setModal({
         open: true,
         status: "success",
         regionId,
         regionName,
-        candidate: report.candidates[0],
+        candidate,
         reportText: report.report_text,
         isFallback: report.is_fallback,
       })
+      // 대안이 있으면(팝업을 닫아도) 지도에 연결선을 계속 보여준다 — 사용자가 팝업을
+      // 닫고 지도에서 대안 위치를 직접 둘러볼 수 있게. 없으면(고득점) 이전에 다른
+      // 지역을 보다가 남아있던 연결선도 지운다.
+      setMapConnections(
+        candidate.alternatives.length > 0 ? { origin: candidate.region, alternatives: candidate.alternatives } : null
+      )
     } catch (err) {
       setModal({ open: true, status: "error", regionId, regionName, error: err.message })
     }
@@ -156,6 +167,7 @@ function App() {
             category={category}
             onRegionClick={openRegionDetail}
             highlightRegionIds={analysis.highlightRegionIds}
+            connections={mapConnections}
           />
         </section>
 

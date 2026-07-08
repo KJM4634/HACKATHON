@@ -19,10 +19,17 @@ const HIGHLIGHT_STYLE = {
   weight: 3,
 }
 
-function DongMap({ category, onRegionClick, highlightRegionIds }) {
+// index.css의 --status-critical/--status-good과 동일한 값. Leaflet이 값을 SVG
+// 속성으로 바로 찍어 넣어 CSS 변수(var())가 항상 해석되리라 보장할 수 없으므로,
+// colorScale.js와 같은 방식으로 실제 값을 그대로 박아 쓴다.
+const ORIGIN_COLOR = "#d03b3b"
+const ALTERNATIVE_COLOR = "#0ca30c"
+
+function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
   const geoLayerRef = useRef(null)
+  const connectionsLayerRef = useRef(null)
   const scoresRef = useRef({})
   const highlightRef = useRef(new Set())
   const onRegionClickRef = useRef(onRegionClick)
@@ -43,6 +50,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds }) {
       maxZoom: 16,
     })
     mapRef.current = map
+    connectionsLayerRef.current = L.layerGroup().addTo(map)
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
@@ -78,6 +86,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds }) {
       map.remove()
       mapRef.current = null
       geoLayerRef.current = null
+      connectionsLayerRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -120,6 +129,58 @@ function DongMap({ category, onRegionClick, highlightRegionIds }) {
       lyr.setStyle(highlightRef.current.has(regionId) ? HIGHLIGHT_STYLE : { weight: BASE_STYLE.weight })
     })
   }, [highlightRegionIds])
+
+  // 선택 지역 점수가 낮아 대안이 있으면, 원래 지역(빨강)과 대안들(초록)을
+  // 선으로 잇고 화면에 전부 들어오도록 확대/축소한다. 대안이 없으면(고득점)
+  // 이전에 그려둔 게 있다면 지우기만 하고 기존처럼 지도는 단순 표시로 둔다.
+  useEffect(() => {
+    const map = mapRef.current
+    const layer = connectionsLayerRef.current
+    if (!map || !layer) return
+
+    layer.clearLayers()
+    if (!connections) return
+
+    const { origin, alternatives } = connections
+    const points = [[origin.위도, origin.경도]]
+
+    L.circleMarker([origin.위도, origin.경도], {
+      radius: 9,
+      color: "#fff",
+      weight: 2,
+      fillColor: ORIGIN_COLOR,
+      fillOpacity: 1,
+      className: "connection-marker connection-marker-origin",
+    })
+      .bindTooltip(`${origin.행정동명} (선택 지역)`, { direction: "top" })
+      .addTo(layer)
+
+    alternatives.forEach((alt) => {
+      const latlng = [alt.region.위도, alt.region.경도]
+      points.push(latlng)
+
+      L.polyline([[origin.위도, origin.경도], latlng], {
+        color: ALTERNATIVE_COLOR,
+        weight: 2,
+        opacity: 0.8,
+        className: "connection-line",
+      }).addTo(layer)
+
+      L.circleMarker(latlng, {
+        radius: 8,
+        color: "#fff",
+        weight: 2,
+        fillColor: ALTERNATIVE_COLOR,
+        fillOpacity: 1,
+        className: "connection-marker connection-marker-alt",
+      })
+        .bindTooltip(`${alt.region.행정동명}: ${alt.score}점 · ${alt.distance_km}km`, { direction: "top" })
+        .on("click", () => onRegionClickRef.current?.(alt.region.region_id, alt.region.행정동명))
+        .addTo(layer)
+    })
+
+    map.fitBounds(L.latLngBounds(points), { padding: [56, 56], maxZoom: 15 })
+  }, [connections])
 
   return (
     <div className="dong-map-wrap">

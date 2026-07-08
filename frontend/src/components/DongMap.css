@@ -90,3 +90,30 @@
 .leaflet-container {
   font-family: inherit;
 }
+
+/* 대안 지역 연결선: 은은하게 흘러가는 느낌만 주는 정도로, 튀지 않게 */
+.connection-line {
+  stroke-dasharray: 6 6;
+  animation: connection-flow 0.9s linear infinite;
+}
+
+@keyframes connection-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.connection-marker {
+  cursor: pointer;
+  filter: drop-shadow(0 1px 3px rgba(11, 11, 11, 0.35));
+}
+
+.connection-marker-origin {
+  cursor: default;
+}
+
+.leaflet-tooltip {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 9px;
+}
