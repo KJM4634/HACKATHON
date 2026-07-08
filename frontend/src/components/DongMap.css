@@ -17,9 +17,9 @@
   z-index: 500;
   background: var(--surface-1);
   border: 1px solid var(--border-ring);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 12px 14px;
-  box-shadow: 0 4px 16px rgba(11, 11, 11, 0.12);
+  box-shadow: 0 4px 16px rgba(28, 20, 15, 0.12);
   min-width: 200px;
   font-size: 12px;
 }
@@ -75,11 +75,11 @@
   z-index: 500;
   background: var(--surface-1);
   border: 1px solid var(--border-ring);
-  border-radius: 8px;
+  border-radius: var(--radius-pill);
   padding: 8px 16px;
   font-size: 13px;
   color: var(--text-secondary);
-  box-shadow: 0 4px 16px rgba(11, 11, 11, 0.12);
+  box-shadow: 0 4px 16px rgba(28, 20, 15, 0.12);
 }
 
 .dong-map-overlay-error {
@@ -89,6 +89,24 @@
 
 .leaflet-container {
   font-family: inherit;
+}
+
+/* Leaflet 기본 확대/축소 버튼도 나머지 UI와 같은 톤(따뜻한 accent, 둥근 모서리)으로 */
+.leaflet-control-zoom {
+  border-radius: var(--radius-md) !important;
+  overflow: hidden;
+  border: 1px solid var(--border-ring) !important;
+  box-shadow: 0 4px 16px rgba(28, 20, 15, 0.12) !important;
+}
+
+.leaflet-control-zoom a {
+  background: var(--surface-1) !important;
+  color: var(--text-primary) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--accent-bg) !important;
+  color: var(--accent) !important;
 }
 
 /* 대안 지역 연결선: 은은하게 흘러가는 느낌만 주는 정도로, 튀지 않게 */

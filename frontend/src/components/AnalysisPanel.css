@@ -27,7 +27,7 @@
 .panel-error {
   padding: 12px 14px;
   border: 1px solid var(--status-critical);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--status-critical);
   font-size: 13px;
   line-height: 1.6;
@@ -54,7 +54,7 @@
   padding: 10px 12px;
   background: var(--surface-2);
   border: 1px solid var(--border-ring);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -96,7 +96,7 @@
   color: var(--status-warning);
   background: color-mix(in srgb, var(--status-warning) 14%, transparent);
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
 }
 
 .top3-score {

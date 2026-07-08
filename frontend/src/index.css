@@ -1,19 +1,28 @@
 :root {
-  /* dataviz 스킬 palette.md의 검증된 라이트 모드 토큰 */
-  --surface-1: #fcfcfb;
-  --surface-2: #f9f9f7;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --gridline: #e1e0d9;
-  --border-ring: rgba(11, 11, 11, 0.1);
-  --accent: #2a78d6;
-  --accent-bg: rgba(42, 120, 214, 0.1);
+  /* "활기차고 친근한 창업 지원" 톤: 차가운 블루 대신 코랄/오렌지 계열 accent와
+     웜톤 표면을 쓴다. 단, --status-*는 지도 히트맵과 무관하게 성공/경고/위험을
+     나타내는 시맨틱 색이라 그대로 둔다 — 지도 점수 색상(colorScale.js)은 이
+     토큰들을 참조하지 않고 자체 값을 갖고 있어 애초에 영향받지 않는다. */
+  --surface-1: #fdfaf5;
+  --surface-2: #faf3e9;
+  --text-primary: #1c140f;
+  --text-secondary: #5c5147;
+  --text-muted: #94897a;
+  --gridline: #ece3d5;
+  --border-ring: rgba(94, 62, 27, 0.14);
+  --accent: #e35d2b;
+  --accent-bg: rgba(227, 93, 43, 0.12);
 
   --status-good: #0ca30c;
   --status-warning: #fab219;
   --status-serious: #ec835a;
   --status-critical: #d03b3b;
+
+  /* 카드/버튼을 더 둥글게 — 직각보다 부드러운 곡선으로 친근한 느낌을 준다 */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
 
   --sans: system-ui, "Segoe UI", Roboto, sans-serif;
 
@@ -29,15 +38,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface-1: #1a1a19;
-    --surface-2: #0d0d0d;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --gridline: #2c2c2a;
-    --border-ring: rgba(255, 255, 255, 0.1);
-    --accent: #3987e5;
-    --accent-bg: rgba(57, 135, 229, 0.15);
+    --surface-1: #241a13;
+    --surface-2: #17100b;
+    --text-primary: #fbf3ea;
+    --text-secondary: #d9cdbe;
+    --text-muted: #a89b8a;
+    --gridline: #3a2c20;
+    --border-ring: rgba(255, 235, 220, 0.12);
+    --accent: #ff7a45;
+    --accent-bg: rgba(255, 122, 69, 0.18);
 
     --status-good: #0ca30c;
     --status-warning: #fab219;

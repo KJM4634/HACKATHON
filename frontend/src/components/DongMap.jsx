@@ -14,8 +14,10 @@ const BASE_STYLE = {
   fillOpacity: 0.45,
 }
 
+// index.css의 --accent와 동일한 값 — Leaflet이 값을 SVG 속성으로 바로 찍어 넣어
+// CSS 변수(var())가 항상 해석되리라 보장할 수 없으므로 실제 값을 그대로 박아 쓴다.
 const HIGHLIGHT_STYLE = {
-  color: "#2a78d6",
+  color: "#e35d2b",
   weight: 3,
 }
 
