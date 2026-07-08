@@ -97,3 +97,55 @@ def test_parse_query_raises_without_api_key(monkeypatch):
         assert False, "예외가 발생해야 함"
     except RuntimeError as e:
         assert "GEMINI_API_KEY" in str(e)
+
+
+_SEOMYEON_REGION_NAMES = [
+    "부산진구 부전1동",
+    "부산진구 부전2동",
+    "부산진구 전포1동",
+    "부산진구 전포2동",
+    "중구 남포동",
+]
+
+
+def _fail_if_gemini_called(**kwargs):
+    raise AssertionError("별칭 단어만 왔을 때는 Gemini를 호출하면 안 됨")
+
+
+def test_parse_query_bare_alias_word_skips_gemini(monkeypatch):
+    """'서면'처럼 별칭 테이블에 있는 단어만 오면 Gemini를 부르지 않고 바로 매칭해야
+    한다. GEMINI_API_KEY도 필요 없다는 걸 보여주려고 일부러 지워둔다."""
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(query_parser.genai, "Client", _fail_if_gemini_called)
+
+    result = query_parser.parse_query("서면", _SEOMYEON_REGION_NAMES, _CATEGORIES)
+
+    assert result["category"] is None
+    assert set(result["matched_region_names"]) == {
+        "부산진구 부전1동",
+        "부산진구 부전2동",
+        "부산진구 전포1동",
+        "부산진구 전포2동",
+    }
+
+
+def test_parse_query_alias_word_with_surrounding_whitespace(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(query_parser.genai, "Client", _fail_if_gemini_called)
+
+    result = query_parser.parse_query("  서면  ", _SEOMYEON_REGION_NAMES, _CATEGORIES)
+
+    assert len(result["matched_region_names"]) == 4
+
+
+def test_parse_query_sentence_with_alias_still_uses_gemini(monkeypatch):
+    """단어 하나가 아니라 문장이면(기존에 잘 되던 경로) 그대로 Gemini를 쓴다."""
+    monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+    _mock_gemini(
+        monkeypatch,
+        {"matched_region_names": ["부산진구 부전1동", "부산진구 부전2동"], "category": "카페"},
+    )
+
+    result = query_parser.parse_query("서면에 카페 어때?", _SEOMYEON_REGION_NAMES, _CATEGORIES)
+
+    assert result["category"] == "카페"

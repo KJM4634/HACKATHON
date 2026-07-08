@@ -20,6 +20,8 @@ import os
 from google import genai
 from google.genai import types
 
+from app.region_aliases import REGION_ALIASES
+
 logger = logging.getLogger(__name__)
 
 # report.py와 같은 이유로 gemini-3.1-flash-lite 사용 (RPD 500, Google 공식 후속 모델)
@@ -62,6 +64,16 @@ def parse_query(query: str, region_names: list[str], categories: list[str]) -> d
     실패(키 없음/타임아웃/API 에러/빈 응답/JSON 파싱 실패)는 예외로 그대로
     올린다 — 호출부(API 엔드포인트)가 "파악하지 못했다"는 사용자 안내로
     바꿔서 처리한다."""
+    stripped = query.strip()
+    if stripped in REGION_ALIASES:
+        # 문장 없이 생활권 이름 단어 하나만 온 경우 — Gemini를 부르지 않고 바로
+        # 매칭한다. 업종 정보가 있을 수 없는 입력이라 category는 항상 None이고,
+        # region_aliases.py 덕분에 검색창(regionAliases.js)과 항상 같은 결과가
+        # 나온다(Gemini는 호출할 때마다 2~4곳 사이로 판단이 갈렸었다).
+        fragments = REGION_ALIASES[stripped]
+        matched = [name for name in region_names if any(fragment in name for fragment in fragments)]
+        return {"matched_region_names": matched, "category": None}
+
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY가 설정되어 있지 않음")

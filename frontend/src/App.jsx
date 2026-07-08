@@ -105,17 +105,24 @@ function App() {
         return
       }
 
+      // 지역이 정확히 1곳으로 특정됐으면 TOP-N 목록이 아니라 그 지역의 상세
+      // 화면(게이지+바차트+대안비교+지도연결)으로 바로 들어간다 — 사용자가
+      // 특정 지역을 콕 집어 물었는데 카드 하나만 달랑 뜨고 클릭을 한 번 더
+      // 해야 하는 건 어색하다. 이미 점수가 높아 대안이 없으면 그 사실 자체가
+      // 정답이라, 억지로 다른 지역을 끼워 넣지 않는다.
       setNlQuery({ status: "success", message: parsed.message })
-      await handleAnalyze(parsed.category, parsed.region_matches[0].행정동명)
+      const match = parsed.region_matches[0]
+      await openRegionDetail(match.region_id, match.행정동명, parsed.category)
     } catch (err) {
       setNlQuery({ status: "error", message: err.message })
     }
   }
 
-  async function openRegionDetail(regionId, regionName) {
+  async function openRegionDetail(regionId, regionName, overrideCategory) {
+    const effectiveCategory = overrideCategory ?? category
     setModal({ open: true, status: "loading", regionId, regionName })
     try {
-      const report = await fetchReport([regionId], category)
+      const report = await fetchReport([regionId], effectiveCategory)
       const candidate = report.candidates[0]
       setModal({
         open: true,
