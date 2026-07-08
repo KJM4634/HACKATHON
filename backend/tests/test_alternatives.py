@@ -53,6 +53,23 @@ def test_find_alternatives_filters_by_score_and_distance():
     assert [a.region.region_id for a in result] == ["4"]
 
 
+def test_no_cycle_between_two_alternatives():
+    """A(낮은 점수)가 B(높은 점수)를 대안으로 추천했다면, B 입장에서 다시
+    A를 대안으로 추천하는 일은 없어야 한다 — "점수가 더 높은 곳만" 조건이
+    있으면 A>B와 B>A가 동시에 성립할 수 없어 수학적으로 순환이 불가능하다.
+    실제 재현 시나리오(부전2동 50점 -> 전포2동 56점)를 그대로 본떴다."""
+    seomyeon = _region("1", "부전2동", 35.1554, 129.0586)
+    jeonpo = _region("2", "전포2동", 35.1600, 129.0650)  # 3km 이내
+    all_scores = {"1": _score_result(50), "2": _score_result(56)}
+    region_by_id = {"1": seomyeon, "2": jeonpo}
+
+    seomyeon_alternatives = find_alternatives(seomyeon, 50, all_scores, region_by_id)
+    assert any(a.region.region_id == "2" for a in seomyeon_alternatives)
+
+    jeonpo_alternatives = find_alternatives(jeonpo, 56, all_scores, region_by_id)
+    assert all(a.region.region_id != "1" for a in jeonpo_alternatives)
+
+
 def test_find_alternatives_includes_breakdown_for_llm_grounding():
     target = _region("1", "대상동", 35.150, 129.050)
     better_nearby = _region("2", "좋은동", 35.151, 129.051)
