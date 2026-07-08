@@ -21,12 +21,14 @@ from app.schemas import AnalyzeResponse
 
 logger = logging.getLogger(__name__)
 
-# gemini-2.5-flash 무료 티어는 실측 결과 일일 20회로 매우 낮음(2026-07-08,
-# 429 응답의 quotaValue로 직접 확인). gemini-2.5-flash-lite로 교체 —
-# 모델별로 쿼터가 완전히 분리돼 있고(quotaId가 PerModel), 공개된 자료 기준으로도
-# flash보다 일일 한도가 훨씬 높다. 품질이 필요한 서술형 리포트보다 원래
-# 가벼운 모델을 염두에 두고 설계된 프롬프트라 품질 저하 리스크도 작다.
-_MODEL = "gemini-2.5-flash-lite"
+# gemini-2.5-flash와 gemini-2.5-flash-lite 둘 다 무료 티어 RPD가 20으로 동일함을
+# AI Studio 콘솔에서 직접 확인(2026-07-08) — "flash-lite가 더 높다"던 서드파티
+# 자료는 이 계정 기준으로는 틀렸다. gemini-3.1-flash-lite로 교체 — RPD 500(RPM
+# 15)으로 훨씬 여유롭고, Google이 gemini-2.5-flash-lite의 공식 후속(migration
+# target)으로 지정한 모델이라 임의 선택이 아니다. gemini-2.5-flash/flash-lite는
+# 2026-10-16 지원 종료 예정인 반면, gemini-3.1-flash-lite는 2027-05-07까지라
+# 여유가 더 있다(다만 이것도 영구적이진 않으니, 그 시점 전에 한 번 더 확인 필요).
+_MODEL = "gemini-3.1-flash-lite"
 _TIMEOUT_MS = 15_000
 _MAX_OUTPUT_TOKENS = 4096
 
@@ -60,11 +62,28 @@ _SYSTEM_INSTRUCTION = """당신은 부울경(부산/울산/경남) 지역 상권
    글자로 보이므로, 제목이나 강조 없이 자연스러운 문단과 줄바꿈만으로 구성하세요.
 9. 어떤 후보에 "대안_지역" 필드가 있다면(점수가 낮아 시스템이 미리 찾아둔,
    더 점수가 높고 가까운 지역들입니다), 그 후보를 설명한 직후에 비교 문단을
-   추가하세요: 먼저 이 후보가 왜 아쉬운지(낮은 세부점수를 근거로, 규칙 4의
-   완곡한 표현으로) 짚고, 그다음 "대안_지역" 각각의 총점과 거리(distance_km)를
-   근거로 왜 더 나은 선택일 수 있는지 비교하세요. 대안 지역의 세부점수는 주어지지
-   않았으니 총점과 거리만으로 이야기하고, 세부지표를 추측해서 말하지 마세요.
-   "대안_지역"이 없거나 빈 후보는 이 비교 없이 평소대로 설명하세요."""
+   추가하세요. "대안_지역"이 없거나 빈 후보는 이 비교 없이 평소대로 설명하고,
+   아래는 건너뛰세요. 이 문단은 반드시 다음 순서로, 정확히 이 형태를 따라
+   쓰세요(괄호 안만 실제 내용으로 채우세요):
+
+   1) 첫 문장은 결론부터: "이런 이유로 [원래 후보 행정동명]보다는 [대안_지역
+      중 total_score가 가장 높은 곳의 행정동명]을 추천드립니다." 세부점수를
+      죽 나열하다가 맨 마지막에 결론을 붙이는 순서(예: "…아쉽습니다. 그래서
+      추천드립니다")는 안 됩니다 — 결론 문장이 이 문단의 첫 문장이어야 합니다.
+   2) 그다음, "대안_지역" 각각에 대해 한 문장씩: "[대안 행정동명]에서
+      창업하시면 [그 지역 breakdown이 원래 후보 breakdown보다 실제로 더 높은
+      지표 하나를 골라, 그 지표가 뜻하는 구체적 강점 — 예: 배후수요가 더 높음
+      = 유동인구가 더 많음, 경쟁강도가 더 높음 = 경쟁이 덜 치열함, 수익성이
+      더 높음 = 매출 규모가 더 큼] 덕분에 더 잘될 가능성이 높습니다." 한
+      지역에 breakdown상 더 나은 지표가 여러 개면 그중 차이가 가장 큰 것
+      하나만 고르세요. 두 지역의 수치를 비교하는 복잡한 문장(예: "…와 달리
+      …이면서도…") 대신, 대안 지역 하나당 이 단순한 문장 하나로 끝내세요.
+   3) 전체 톤은 원래 지역을 비판하거나 "글렀다"는 식으로 단정하지 말고,
+      "그래도 이렇게 더 나은 대안이 있다"는 건설적인 톤을 유지하세요(규칙
+      4의 완곡한 표현도 함께 지키세요).
+   4) breakdown/total_score/distance_km에 없는 내용(임대료, 실제 유동인구
+      특성 등)은 추측해서 말하지 마세요 — 반드시 주어진 숫자 안에서만 근거를
+      대세요."""
 
 
 def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
@@ -90,7 +109,12 @@ def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
         }
         if c.alternatives:
             entry["대안_지역"] = [
-                {"행정동명": a.region.행정동명, "total_score": a.score, "distance_km": a.distance_km}
+                {
+                    "행정동명": a.region.행정동명,
+                    "total_score": a.score,
+                    "distance_km": a.distance_km,
+                    "breakdown": a.breakdown.model_dump(),
+                }
                 for a in c.alternatives
             ]
         payload.append(entry)

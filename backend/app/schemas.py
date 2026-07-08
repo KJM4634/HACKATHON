@@ -172,6 +172,9 @@ class AlternativeRegion(BaseModel):
     region: RegionInfo
     score: int = Field(..., ge=0, le=100)
     distance_km: float = Field(..., ge=0)
+    breakdown: ScoreBreakdown = Field(
+        ..., description="LLM이 '구체적으로 왜 더 나은지' 지어내지 않고 실제 지표로 말할 수 있게 제공"
+    )
 
 
 class AnalyzeResponse(BaseModel):

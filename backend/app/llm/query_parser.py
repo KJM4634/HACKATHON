@@ -22,8 +22,8 @@ from google.genai import types
 
 logger = logging.getLogger(__name__)
 
-# report.py와 같은 이유로 gemini-2.5-flash-lite 사용 (무료 티어 일일 한도가 훨씬 높음)
-_MODEL = "gemini-2.5-flash-lite"
+# report.py와 같은 이유로 gemini-3.1-flash-lite 사용 (RPD 500, Google 공식 후속 모델)
+_MODEL = "gemini-3.1-flash-lite"
 _TIMEOUT_MS = 10_000
 _MAX_OUTPUT_TOKENS = 1000
 

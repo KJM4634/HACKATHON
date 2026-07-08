@@ -16,6 +16,7 @@ from app.schemas import (
     RegionScoreSummary,
     ReportRequest,
     ReportResponse,
+    ScoreResult,
 )
 from app.scoring import compute_score
 
@@ -34,10 +35,11 @@ _KNOWN_CATEGORIES = list(CATEGORY_TO_SANGGABU_KEYWORD.keys())
 _report_cache: dict[tuple[tuple[str, ...], str, bool], ReportResponse] = {}
 
 
-def _all_scores_for_category(provider: DataProvider, category: str) -> dict[str, int]:
-    """대안 지역을 찾을 때만 쓰는, 206개 행정동 전체의 총점 맵(가벼운 값만)."""
+def _all_scores_for_category(provider: DataProvider, category: str) -> dict[str, ScoreResult]:
+    """대안 지역을 찾을 때만 쓰는, 206개 행정동 전체의 점수 맵. breakdown까지 담아두는
+    이유는 app/alternatives.py의 find_alternatives() 설명 참고."""
     return {
-        region.region_id: compute_score(provider.get_market_data(region.region_id, category), category).total_score
+        region.region_id: compute_score(provider.get_market_data(region.region_id, category), category)
         for region in provider.list_regions()
     }
 
@@ -110,7 +112,7 @@ def report(req: ReportRequest) -> ReportResponse:
     candidates = [_analyze_one(provider, region_id, req.category) for region_id in req.region_ids]
 
     if req.include_alternatives:
-        all_scores: dict[str, int] | None = None
+        all_scores: dict[str, ScoreResult] | None = None
         region_by_id: dict[str, RegionInfo] | None = None
         for candidate in candidates:
             if candidate.score.total_score > LOW_SCORE_THRESHOLD:

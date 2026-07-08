@@ -103,7 +103,7 @@ def test_generate_report_succeeds_when_llm_returns_text(monkeypatch):
     assert text == "가짜 리포트 본문"
 
 
-def _alt(행정동명, score, distance_km):
+def _alt(행정동명, score, distance_km, 경쟁강도=80):
     region = RegionInfo(
         region_id="1111111111",
         행정동코드="1111111111",
@@ -113,7 +113,8 @@ def _alt(행정동명, score, distance_km):
         위도=35.11,
         경도=129.01,
     )
-    return AlternativeRegion(region=region, score=score, distance_km=distance_km)
+    breakdown = ScoreBreakdown(배후수요=50, 경쟁강도=경쟁강도, 접근성=None, 수익성=50)
+    return AlternativeRegion(region=region, score=score, distance_km=distance_km, breakdown=breakdown)
 
 
 def test_build_candidate_payload_includes_alternatives_when_present():
@@ -122,7 +123,9 @@ def test_build_candidate_payload_includes_alternatives_when_present():
 
     payload = report_module._build_candidate_payload(candidates)
 
-    assert payload[0]["대안_지역"] == [{"행정동명": "옆동", "total_score": 80, "distance_km": 1.2}]
+    assert payload[0]["대안_지역"] == [
+        {"행정동명": "옆동", "total_score": 80, "distance_km": 1.2, "breakdown": alt.breakdown.model_dump()}
+    ]
 
 
 def test_build_candidate_payload_omits_alternatives_key_when_empty():
