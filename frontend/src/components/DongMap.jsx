@@ -25,6 +25,13 @@ const HIGHLIGHT_STYLE = {
 const ORIGIN_COLOR = "#d03b3b"
 const ALTERNATIVE_COLOR = "#0ca30c"
 
+// GeoJSON의 adm_nm은 "부산광역시 OO구 OO동"이지만, TOP3 카드·상세 팝업 등
+// 나머지 화면은 전부 백엔드 RegionInfo.행정동명("OO구 OO동", 시도명 없이) 형식을
+// 쓴다. 표기를 통일하려고 지도 쪽에서 시도명만 잘라낸다.
+function stripSido(name) {
+  return name.replace(/^부산광역시\s*/, "")
+}
+
 function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
@@ -70,12 +77,16 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
               lyr.setStyle(highlightRef.current.has(regionId) ? HIGHLIGHT_STYLE : { weight: BASE_STYLE.weight })
             )
             lyr.on("click", () => {
-              onRegionClickRef.current?.(regionId, feature.properties.adm_nm)
+              onRegionClickRef.current?.(regionId, stripSido(feature.properties.adm_nm))
             })
+            // sticky: true로 마우스를 따라다니게 함 — Leaflet이 호버 중인 레이어 하나에만
+            // mousemove를 붙이는 방식이라 206개 폴리곤이 있어도 무겁지 않다. 점수는 아직
+            // 없을 수 있어(비동기 로딩) 이름만 우선 넣고, applyTooltipsAndColors에서 채운다
+            lyr.bindTooltip(stripSido(feature.properties.adm_nm), { sticky: true, direction: "top", offset: [0, -4] })
           },
         }).addTo(map)
         geoLayerRef.current = layer
-        applyColors(layer, scoresRef.current) // 점수가 지도보다 먼저 도착해 있었을 수 있음
+        applyTooltipsAndColors(layer, scoresRef.current) // 점수가 지도보다 먼저 도착해 있었을 수 있음
       })
       .catch((err) => {
         if (!cancelled) setError(`행정동 경계 로딩 실패: ${err.message}`)
@@ -105,7 +116,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
           byRegion[s.region_id] = s
         })
         scoresRef.current = byRegion
-        applyColors(geoLayerRef.current, byRegion)
+        applyTooltipsAndColors(geoLayerRef.current, byRegion)
         setLoading(false)
       })
       .catch((err) => {
@@ -211,19 +222,22 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
   )
 }
 
-function applyColors(layer, byRegion) {
+function applyTooltipsAndColors(layer, byRegion) {
   if (!layer) return
   layer.eachLayer((lyr) => {
     const regionId = lyr.feature.properties.adm_cd2
+    const name = stripSido(lyr.feature.properties.adm_nm)
     const info = byRegion[regionId]
     if (!info) {
       lyr.setStyle({ fillColor: NO_DATA_COLOR, dashArray: null })
+      lyr.setTooltipContent(`${name} (점수 없음)`)
       return
     }
     lyr.setStyle({
       fillColor: scoreToColor(info.total_score),
       dashArray: info.is_gu_level_estimate ? "4 4" : null,
     })
+    lyr.setTooltipContent(`${name} · ${info.total_score}점`)
   })
 }
 
