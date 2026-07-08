@@ -89,7 +89,9 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
 
       {alternatives?.length > 0 && (
         <div className="alternatives-section">
-          <h3 className="modal-subheading">이 지역보다 나은 인근 대안</h3>
+          <h3 className="modal-subheading">
+            이 지역보다 나은 인근 대안 <span className="alternatives-criteria-badge">3km 이내 · 점수 높은 순</span>
+          </h3>
           <p className="alternatives-caption">
             총점 {score.total_score}점은 낮은 편이라, 같은 업종 기준 3km 이내에서 점수가 더 높은 지역을 찾아봤습니다.
           </p>
