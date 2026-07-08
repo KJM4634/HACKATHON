@@ -61,6 +61,16 @@ body {
   flex-direction: column;
 }
 
+/* 데스크톱/태블릿에서는 높이를 고정해 .side-panel이 내부에서 따로 스크롤되게
+   한다(안 그러면 페이지 전체가 늘어나 스크롤할 때 지도가 같이 밀려 사라진다).
+   모바일은 지도+패널이 세로로 쌓이는 구조라 페이지 전체 스크롤이 자연스러워
+   min-height(고정 안 함)를 그대로 둔다 — App.css의 720px 기준과 맞춘 것. */
+@media (min-width: 721px) {
+  #root {
+    height: 100svh;
+  }
+}
+
 h1,
 h2,
 h3 {

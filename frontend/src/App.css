@@ -5,6 +5,13 @@
   background: var(--surface-2);
 }
 
+/* index.css의 #root와 같은 이유로 데스크톱/태블릿에서만 높이를 고정한다 */
+@media (min-width: 721px) {
+  .app-shell {
+    height: 100svh;
+  }
+}
+
 .topbar {
   display: flex;
   align-items: center;

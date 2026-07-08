@@ -186,16 +186,18 @@ function App() {
         </section>
 
         <aside className="side-panel">
-          <AnalysisPanel analysis={analysis} onCardClick={(regionId) => openRegionDetail(regionId)} />
+          {modal.open ? (
+            <RegionDetailModal
+              modal={modal}
+              category={category}
+              onClose={() => setModal({ open: false })}
+              onAlternativeClick={(regionId) => openRegionDetail(regionId)}
+            />
+          ) : (
+            <AnalysisPanel analysis={analysis} onCardClick={(regionId) => openRegionDetail(regionId)} />
+          )}
         </aside>
       </main>
-
-      <RegionDetailModal
-        modal={modal}
-        category={category}
-        onClose={() => setModal({ open: false })}
-        onAlternativeClick={(regionId) => openRegionDetail(regionId)}
-      />
     </div>
   )
 }

@@ -7,40 +7,42 @@ const BREAKDOWN_LABELS = [
   { key: "수익성", label: "수익성" },
 ]
 
+// 데스크톱/태블릿에서는 AnalysisPanel과 같은 자리(우측 사이드 패널)에 그대로
+// 끼워 넣는 일반 패널이고, 모바일 너비에서만 CSS 미디어쿼리로 전체화면
+// 오버레이가 된다(RegionDetailModal.css의 .region-detail-panel 참고) — 지도를
+// 가리지 않으면서 대안 위치를 지도와 동시에 볼 수 있어야 한다는 요구사항 때문.
 function RegionDetailModal({ modal, category, onClose, onAlternativeClick }) {
   if (!modal.open) return null
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="닫기">
-          ✕
-        </button>
+    <div className="region-detail-panel">
+      <button className="modal-close" onClick={onClose} aria-label="닫기">
+        ✕
+      </button>
 
-        {modal.status === "loading" && (
-          <div className="panel-loading modal-loading">
-            <span className="spinner" aria-hidden="true" />
-            {modal.regionName ?? "지역"} 분석 중입니다…
-          </div>
-        )}
+      {modal.status === "loading" && (
+        <div className="panel-loading modal-loading">
+          <span className="spinner" aria-hidden="true" />
+          {modal.regionName ?? "지역"} 분석 중입니다…
+        </div>
+      )}
 
-        {modal.status === "error" && (
-          <div className="panel-error">
-            <strong>상세 정보를 불러오지 못했습니다.</strong>
-            <p>{modal.error}</p>
-          </div>
-        )}
+      {modal.status === "error" && (
+        <div className="panel-error">
+          <strong>상세 정보를 불러오지 못했습니다.</strong>
+          <p>{modal.error}</p>
+        </div>
+      )}
 
-        {modal.status === "success" && (
-          <RegionDetailContent
-            candidate={modal.candidate}
-            reportText={modal.reportText}
-            isFallback={modal.isFallback}
-            category={category}
-            onAlternativeClick={onAlternativeClick}
-          />
-        )}
-      </div>
+      {modal.status === "success" && (
+        <RegionDetailContent
+          candidate={modal.candidate}
+          reportText={modal.reportText}
+          isFallback={modal.isFallback}
+          category={category}
+          onAlternativeClick={onAlternativeClick}
+        />
+      )}
     </div>
   )
 }

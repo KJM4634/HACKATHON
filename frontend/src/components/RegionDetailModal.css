@@ -1,24 +1,21 @@
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(11, 11, 11, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+/* 기본(데스크톱/태블릿): AnalysisPanel과 같은 자리에 끼워지는 일반 패널.
+   .side-panel이 이미 padding/overflow-y를 갖고 있어 따로 안 잡아도 된다 —
+   지도를 안 가리는 게 핵심이라, 여긴 그냥 사이드 패널 안의 콘텐츠일 뿐이다. */
+.region-detail-panel {
+  position: relative;
 }
 
-.modal-box {
-  position: relative;
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  overflow-y: auto;
-  background: var(--surface-1);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(11, 11, 11, 0.25);
-  padding: 28px 24px 24px;
+/* 좁은 화면에서는 사이드 패널 자체가 지도 아래로 좁게 눌려 상세 정보를
+   보기 불편하므로, 기존처럼 전체화면 오버레이로 띄운다 */
+@media (max-width: 720px) {
+  .region-detail-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: var(--surface-1);
+    overflow-y: auto;
+    padding: 24px 20px;
+  }
 }
 
 .modal-close {
