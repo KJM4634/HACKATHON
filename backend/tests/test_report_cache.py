@@ -13,6 +13,22 @@ def _clear_cache():
 
 def _stub_provider(monkeypatch):
     class _StubProvider:
+        def list_regions(self):
+            from app.schemas import RegionInfo
+
+            return [
+                RegionInfo(
+                    region_id=rid,
+                    행정동코드=rid,
+                    행정동명="테스트동",
+                    시도명="부산광역시",
+                    시군구명="테스트구",
+                    위도=35.1,
+                    경도=129.0,
+                )
+                for rid in ("1000000000", "2000000000")
+            ]
+
         def get_market_data(self, region_id, category):
             from app.schemas import (
                 ClosureStats,
@@ -122,5 +138,24 @@ def test_different_category_is_a_different_cache_entry(monkeypatch):
 
     analyze_module.report(ReportRequest(region_ids=["1000000000"], category="카페"))
     analyze_module.report(ReportRequest(region_ids=["1000000000"], category="음식점"))
+
+    assert call_count == 2
+
+
+def test_include_alternatives_flag_is_part_of_cache_key(monkeypatch):
+    """같은 지역/업종이라도 include_alternatives가 다르면(대안 비교 섹션 유무로
+    리포트 내용 자체가 달라지므로) 별개의 캐시 항목이어야 한다."""
+    _stub_provider(monkeypatch)
+    call_count = 0
+
+    def _fake_generate_report(category, candidates):
+        nonlocal call_count
+        call_count += 1
+        return "가짜 리포트", False
+
+    monkeypatch.setattr(analyze_module, "generate_report", _fake_generate_report)
+
+    analyze_module.report(ReportRequest(region_ids=["1000000000"], category="카페", include_alternatives=True))
+    analyze_module.report(ReportRequest(region_ids=["1000000000"], category="카페", include_alternatives=False))
 
     assert call_count == 2

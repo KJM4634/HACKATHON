@@ -57,7 +57,14 @@ _SYSTEM_INSTRUCTION = """당신은 부울경(부산/울산/경남) 지역 상권
 7. 출력은 바로 사용자에게 보여줄 한국어 리포트 텍스트만 작성하세요. JSON이나
    마크다운 코드블록으로 감싸지 마세요.
 8. 마크다운 문법을 쓰지 마세요(##, **, -, --- 등). 화면에는 이 문자들이 그대로
-   글자로 보이므로, 제목이나 강조 없이 자연스러운 문단과 줄바꿈만으로 구성하세요."""
+   글자로 보이므로, 제목이나 강조 없이 자연스러운 문단과 줄바꿈만으로 구성하세요.
+9. 어떤 후보에 "대안_지역" 필드가 있다면(점수가 낮아 시스템이 미리 찾아둔,
+   더 점수가 높고 가까운 지역들입니다), 그 후보를 설명한 직후에 비교 문단을
+   추가하세요: 먼저 이 후보가 왜 아쉬운지(낮은 세부점수를 근거로, 규칙 4의
+   완곡한 표현으로) 짚고, 그다음 "대안_지역" 각각의 총점과 거리(distance_km)를
+   근거로 왜 더 나은 선택일 수 있는지 비교하세요. 대안 지역의 세부점수는 주어지지
+   않았으니 총점과 거리만으로 이야기하고, 세부지표를 추측해서 말하지 마세요.
+   "대안_지역"이 없거나 빈 후보는 이 비교 없이 평소대로 설명하세요."""
 
 
 def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
@@ -68,21 +75,25 @@ def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
     for c in candidates:
         md = c.market_data
         total_visits = sum(h.평균방문인구수 for h in md.foot_traffic)
-        payload.append(
-            {
-                "행정동명": md.region.행정동명,
-                "total_score": c.score.total_score,
-                "breakdown": c.score.breakdown.model_dump(),
-                "weights_used": c.score.weights_used.model_dump(),
-                "참고_원자료": {
-                    "일_총_방문인구": total_visits,
-                    "구_총인구수": md.population.총인구수,
-                    "동일업종_경쟁업체수": md.competitors.total_count,
-                    "폐업률(%)": md.closure_stats.폐업률 if md.closure_stats.data_available else None,
-                },
-                "data_limitations": c.score.data_limitations,
-            }
-        )
+        entry = {
+            "행정동명": md.region.행정동명,
+            "total_score": c.score.total_score,
+            "breakdown": c.score.breakdown.model_dump(),
+            "weights_used": c.score.weights_used.model_dump(),
+            "참고_원자료": {
+                "일_총_방문인구": total_visits,
+                "구_총인구수": md.population.총인구수,
+                "동일업종_경쟁업체수": md.competitors.total_count,
+                "폐업률(%)": md.closure_stats.폐업률 if md.closure_stats.data_available else None,
+            },
+            "data_limitations": c.score.data_limitations,
+        }
+        if c.alternatives:
+            entry["대안_지역"] = [
+                {"행정동명": a.region.행정동명, "total_score": a.score, "distance_km": a.distance_km}
+                for a in c.alternatives
+            ]
+        payload.append(entry)
     return payload
 
 
@@ -119,7 +130,10 @@ def _call_gemini(category: str, payload: list[dict]) -> str:
 
 
 def _fallback_report(category: str, candidates: list[AnalyzeResponse]) -> str:
-    """LLM 없이 점수만으로 만드는 기본 템플릿 (PRD 8장: LLM 실패 시 대응)."""
+    """LLM 없이 점수만으로 만드는 기본 템플릿 (PRD 8장: LLM 실패 시 대응).
+
+    대안 비교는 Gemini의 해설 없이도 핵심 정보(어디가, 몇 점 차이로, 얼마나
+    가까운지)는 전달되게 한 줄만 덧붙인다."""
     ranked = sorted(candidates, key=lambda c: c.score.total_score, reverse=True)
     lines = [f"[{category}] 후보 {len(ranked)}곳 점수 요약 (AI 리포트 생성 실패로 기본 요약을 표시합니다)", ""]
     for i, c in enumerate(ranked, start=1):
@@ -128,6 +142,9 @@ def _fallback_report(category: str, candidates: list[AnalyzeResponse]) -> str:
             f"{i}. {c.region.행정동명} — 총점 {c.score.total_score}점 "
             f"(배후수요 {b.배후수요} / 경쟁강도 {b.경쟁강도} / 수익성 {b.수익성})"
         )
+        if c.alternatives:
+            alt_text = ", ".join(f"{a.region.행정동명}({a.score}점, {a.distance_km}km)" for a in c.alternatives)
+            lines.append(f"   ⚠ 이 지역은 점수가 낮습니다. 인근 대안: {alt_text}")
     return "\n".join(lines)
 
 

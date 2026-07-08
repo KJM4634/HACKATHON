@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from app.alternatives import LOW_SCORE_THRESHOLD, find_alternatives
 from app.data_provider import get_data_provider
 from app.data_provider.base import DataProvider
 from app.data_provider.local.category_mapping import CATEGORY_TO_SANGGABU_KEYWORD
@@ -22,11 +23,23 @@ router = APIRouter(prefix="/api", tags=["analyze"])
 
 _KNOWN_CATEGORIES = list(CATEGORY_TO_SANGGABU_KEYWORD.keys())
 
-# region_ids/category 조합 -> ReportResponse. 프로세스 메모리에만 있는 캐시라 재시작하면
-# 비워진다 — Gemini 무료 티어 일일 한도가 낮아서, 같은 조합을 반복 호출할 때(데모 리허설,
-# 새로고침 등) 쿼터를 아끼는 게 목적이다. is_fallback=True인 결과는 캐시하지 않는다 —
-# 그렇게 하면 일시적 Gemini 장애로 받은 기본 템플릿이 장애가 풀린 뒤에도 영영 굳어버린다.
-_report_cache: dict[tuple[tuple[str, ...], str], ReportResponse] = {}
+# (region_ids 정렬 튜플, category, include_alternatives) -> ReportResponse. 프로세스
+# 메모리에만 있는 캐시라 재시작하면 비워진다 — Gemini 무료 티어 일일 한도가 낮아서,
+# 같은 조합을 반복 호출할 때(데모 리허설, 새로고침 등) 쿼터를 아끼는 게 목적이다.
+# include_alternatives도 키에 넣는 이유: 같은 지역 조합이라도 이 값에 따라 프롬프트에
+# 들어가는 내용(대안 비교 섹션 유무)이 달라져 결과가 달라지므로, 빼면 한쪽 호출 결과가
+# 다른 쪽에 잘못 재사용될 수 있다.
+# is_fallback=True인 결과는 캐시하지 않는다 — 그렇게 하면 일시적 Gemini 장애로 받은
+# 기본 템플릿이 장애가 풀린 뒤에도 영영 굳어버린다.
+_report_cache: dict[tuple[tuple[str, ...], str, bool], ReportResponse] = {}
+
+
+def _all_scores_for_category(provider: DataProvider, category: str) -> dict[str, int]:
+    """대안 지역을 찾을 때만 쓰는, 206개 행정동 전체의 총점 맵(가벼운 값만)."""
+    return {
+        region.region_id: compute_score(provider.get_market_data(region.region_id, category), category).total_score
+        for region in provider.list_regions()
+    }
 
 
 def _analyze_one(provider: DataProvider, region_id: str, category: str) -> AnalyzeResponse:
@@ -82,15 +95,32 @@ def report(req: ReportRequest) -> ReportResponse:
     """PRD 3.4: 후보 지역 여러 곳을 분석해 Top3 추천 입지 + 이유 + 리스크를
     자연어 리포트로 만든다. LLM 실패 시 점수만으로 만든 기본 템플릿으로 대체.
 
-    같은 (지역 조합, 업종)으로 이미 성공한 리포트가 있으면 Gemini를 다시 부르지
-    않고 그 결과를 그대로 돌려준다(무료 티어 쿼터 절약)."""
-    cache_key = (tuple(sorted(req.region_ids)), req.category)
+    점수가 낮은(50점 이하) 후보는 include_alternatives=True일 때 같은 업종·3km
+    이내에서 더 점수 높은 대안을 찾아 붙이고, Gemini가 "왜 이 지역이 아쉬운지 +
+    대안이 왜 나은지"를 비교해서 설명하게 한다.
+
+    같은 (지역 조합, 업종, include_alternatives)로 이미 성공한 리포트가 있으면
+    Gemini를 다시 부르지 않고 그 결과를 그대로 돌려준다(무료 티어 쿼터 절약)."""
+    cache_key = (tuple(sorted(req.region_ids)), req.category, req.include_alternatives)
     cached = _report_cache.get(cache_key)
     if cached is not None:
         return cached
 
     provider: DataProvider = get_data_provider()
     candidates = [_analyze_one(provider, region_id, req.category) for region_id in req.region_ids]
+
+    if req.include_alternatives:
+        all_scores: dict[str, int] | None = None
+        region_by_id: dict[str, RegionInfo] | None = None
+        for candidate in candidates:
+            if candidate.score.total_score > LOW_SCORE_THRESHOLD:
+                continue
+            if all_scores is None:  # 낮은 후보가 있을 때만, 그것도 한 번만 전체를 계산
+                all_scores = _all_scores_for_category(provider, req.category)
+                region_by_id = {r.region_id: r for r in provider.list_regions()}
+            candidate.alternatives = find_alternatives(
+                candidate.region, candidate.score.total_score, all_scores, region_by_id
+            )
 
     report_text, is_fallback = generate_report(req.category, candidates)
 

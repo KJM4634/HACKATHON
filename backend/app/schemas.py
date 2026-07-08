@@ -166,11 +166,23 @@ class AnalyzeRequest(BaseModel):
     category: str = Field(..., description="사용자가 선택한 업종 (예: '카페')")
 
 
+class AlternativeRegion(BaseModel):
+    """이 지역보다 점수가 높고 가까운(3km 이내) 대안 후보."""
+
+    region: RegionInfo
+    score: int = Field(..., ge=0, le=100)
+    distance_km: float = Field(..., ge=0)
+
+
 class AnalyzeResponse(BaseModel):
     region: RegionInfo
     category: str
     score: ScoreResult
     market_data: MarketData
+    alternatives: list[AlternativeRegion] = Field(
+        default_factory=list,
+        description="총점이 낮을 때(app.alternatives.LOW_SCORE_THRESHOLD 이하) 채워지는 인근 대안 후보. 평소엔 빈 리스트",
+    )
 
 
 class RegionScoreSummary(BaseModel):
@@ -193,6 +205,9 @@ class ReportRequest(BaseModel):
         ..., min_length=1, max_length=10, description="비교할 후보 지역 (1~10곳)"
     )
     category: str = Field(..., description="사용자가 선택한 업종 (예: '카페')")
+    include_alternatives: bool = Field(
+        True, description="True면 점수가 낮은 후보에 대해 인근 대안 지역을 찾아 리포트에 비교 반영"
+    )
 
 
 class ReportResponse(BaseModel):
