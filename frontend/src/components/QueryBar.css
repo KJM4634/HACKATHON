@@ -18,6 +18,7 @@
   border: 1px solid var(--border-ring);
   background: var(--surface-1);
   color: var(--text-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .query-bar-input:focus {
@@ -36,10 +37,19 @@
   background: var(--surface-1);
   color: var(--accent);
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
 }
 
 .query-bar-button:hover:not(:disabled) {
   background: var(--accent-bg);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.query-bar-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+  box-shadow: var(--shadow-sm);
 }
 
 .query-bar-button:disabled {

@@ -24,6 +24,12 @@
   --radius-lg: 18px;
   --radius-pill: 999px;
 
+  /* 카드가 "떠 있는" 느낌을 주는 그림자 3단계 + 공통 트랜지션 타이밍 */
+  --shadow-sm: 0 1px 3px rgba(28, 20, 15, 0.08);
+  --shadow-md: 0 6px 16px rgba(28, 20, 15, 0.12);
+  --shadow-lg: 0 12px 32px rgba(28, 20, 15, 0.16);
+  --transition-fast: 0.15s ease;
+
   --sans: system-ui, "Segoe UI", Roboto, sans-serif;
 
   font: 16px/1.5 var(--sans);
@@ -90,4 +96,13 @@ h3 {
 
 p {
   margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

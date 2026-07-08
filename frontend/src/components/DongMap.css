@@ -19,13 +19,13 @@
   border: 1px solid var(--border-ring);
   border-radius: var(--radius-lg);
   padding: 12px 14px;
-  box-shadow: 0 4px 16px rgba(28, 20, 15, 0.12);
+  box-shadow: var(--shadow-md);
   min-width: 200px;
   font-size: 12px;
 }
 
 .legend-title {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 8px;
 }
@@ -79,7 +79,7 @@
   padding: 8px 16px;
   font-size: 13px;
   color: var(--text-secondary);
-  box-shadow: 0 4px 16px rgba(28, 20, 15, 0.12);
+  box-shadow: var(--shadow-md);
 }
 
 .dong-map-overlay-error {
@@ -96,12 +96,13 @@
   border-radius: var(--radius-md) !important;
   overflow: hidden;
   border: 1px solid var(--border-ring) !important;
-  box-shadow: 0 4px 16px rgba(28, 20, 15, 0.12) !important;
+  box-shadow: var(--shadow-md) !important;
 }
 
 .leaflet-control-zoom a {
   background: var(--surface-1) !important;
   color: var(--text-primary) !important;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .leaflet-control-zoom a:hover {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { Coffee, MapPin, Scissors, ShoppingBag, UtensilsCrossed } from "lucide-react"
 import DongMap from "./components/DongMap"
 import AnalysisPanel from "./components/AnalysisPanel"
 import RegionDetailModal from "./components/RegionDetailModal"
@@ -8,6 +9,9 @@ import { matchesRegionQuery } from "./regionAliases"
 import "./App.css"
 
 const CATEGORIES = ["카페", "음식점", "편의점", "미용실"]
+// 업종 문자열 자체는 백엔드/자연어 질의 파싱과 그대로 맞춰야 해서 바꾸지 않고,
+// 렌더링에만 쓰는 아이콘을 별도 맵으로 둔다.
+const CATEGORY_ICONS = { 카페: Coffee, 음식점: UtensilsCrossed, 편의점: ShoppingBag, 미용실: Scissors }
 const TOP_N = 3
 
 function App() {
@@ -147,15 +151,32 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <span className="logo">여기차려</span>
+        <span className="logo-group">
+          <span className="logo-icon" aria-hidden="true">
+            <MapPin size={15} strokeWidth={2.5} />
+          </span>
+          <span className="logo">여기차려</span>
+        </span>
         <div className="topbar-controls">
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <div className="category-tabs" role="tablist" aria-label="업종 선택">
+            {CATEGORIES.map((c) => {
+              const Icon = CATEGORY_ICONS[c]
+              const active = c === category
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`category-tab ${active ? "category-tab-active" : ""}`}
+                  onClick={() => setCategory(c)}
+                >
+                  <Icon size={15} strokeWidth={2.25} aria-hidden="true" />
+                  {c}
+                </button>
+              )
+            })}
+          </div>
           <input
             type="text"
             placeholder="지역 검색 (예: 서면)"

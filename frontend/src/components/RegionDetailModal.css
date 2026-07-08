@@ -30,11 +30,17 @@
   color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
+  transition: transform var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .modal-close:hover {
   background: var(--accent-bg);
   color: var(--accent);
+  transform: scale(1.08);
+}
+
+.modal-close:active {
+  transform: scale(0.94);
 }
 
 .modal-loading {
@@ -43,23 +49,26 @@
 }
 
 .modal-title {
-  margin-bottom: 16px;
+  font-size: 21px;
+  font-weight: 800;
+  margin-bottom: 20px;
   padding-right: 24px;
 }
 
 .modal-subheading {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin-top: 20px;
-  margin-bottom: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 26px;
+  margin-bottom: 12px;
 }
 
 .gauge-row {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 0 4px;
+  gap: 8px;
+  padding: 12px 0 8px;
 }
 
 .gauge {
@@ -95,7 +104,7 @@
 .breakdown-bars {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .breakdown-row {
@@ -135,10 +144,11 @@
 /* 대안 추천 / 이곳에서 성공하려면 — 점수가 낮을 때만 뜨는 두 관점을 탭으로
    나눠서 한 번에 하나씩만 보여준다(둘 다 펼쳐두면 패널이 너무 길고 복잡해짐) */
 .low-score-section {
-  margin-top: 20px;
+  margin-top: 24px;
   border: 1px solid var(--status-warning);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--status-warning) 8%, transparent);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -157,6 +167,11 @@
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.low-score-tab:hover {
+  color: var(--text-primary);
 }
 
 .low-score-tab-active {
@@ -166,7 +181,7 @@
 }
 
 .low-score-tab-panel {
-  padding: 12px;
+  padding: 14px;
 }
 
 .alternatives-criteria-badge {
@@ -195,7 +210,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .alternative-card {
@@ -203,18 +218,31 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 9px 12px;
   background: var(--surface-1);
   border: 1px solid var(--border-ring);
   border-radius: var(--radius-md);
   cursor: pointer;
   font: inherit;
   text-align: left;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .alternative-card:hover {
   border-color: var(--accent);
   background: var(--accent-bg);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.alternative-card:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--shadow-sm);
 }
 
 .alternative-name {
@@ -250,10 +278,11 @@
 }
 
 .track-a-section {
-  margin-top: 20px;
+  margin-top: 24px;
   border: 1px solid var(--border-ring);
   border-radius: var(--radius-lg);
-  padding: 10px 12px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm);
 }
 
 .track-a-section summary {
@@ -286,7 +315,7 @@
 }
 
 .strategy-block {
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
 .strategy-block:last-child {
