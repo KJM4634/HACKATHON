@@ -91,7 +91,7 @@ def test_build_candidate_payload_includes_scores_not_raw_dump():
     assert entry["breakdown"]["수익성"] == 0
     assert entry["참고_원자료"]["동일업종_경쟁업체수"] == 10
     assert entry["참고_원자료"]["폐업률(%)"] is None  # data_available=False
-    assert entry["data_limitations"] == ["테스트 한계 사항"]
+    assert "data_limitations" not in entry  # 리포트마다 반복 노출 안 하려고 payload에서 뺌
 
 
 def test_generate_report_succeeds_when_llm_returns_text(monkeypatch):
