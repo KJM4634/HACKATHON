@@ -21,9 +21,12 @@ from app.schemas import AnalyzeResponse
 
 logger = logging.getLogger(__name__)
 
-# gemini-2.0-flash는 지원 종료(deprecated) 단계라 그 자리를 대체하는, 무료 티어에서
-# 쓸 수 있는 안정판(preview 아님) 경량 모델로 바꿔 씀: gemini-2.5-flash.
-_MODEL = "gemini-2.5-flash"
+# gemini-2.5-flash 무료 티어는 실측 결과 일일 20회로 매우 낮음(2026-07-08,
+# 429 응답의 quotaValue로 직접 확인). gemini-2.5-flash-lite로 교체 —
+# 모델별로 쿼터가 완전히 분리돼 있고(quotaId가 PerModel), 공개된 자료 기준으로도
+# flash보다 일일 한도가 훨씬 높다. 품질이 필요한 서술형 리포트보다 원래
+# 가벼운 모델을 염두에 두고 설계된 프롬프트라 품질 저하 리스크도 작다.
+_MODEL = "gemini-2.5-flash-lite"
 _TIMEOUT_MS = 15_000
 _MAX_OUTPUT_TOKENS = 4096
 

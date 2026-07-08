@@ -202,3 +202,18 @@ class ReportResponse(BaseModel):
     is_fallback: bool = Field(
         ..., description="True면 LLM 호출 실패/시간초과로 점수만으로 만든 기본 템플릿 리포트"
     )
+
+
+class QueryParseRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="자연어 질의 (예: '서면에 커피숍 차릴 건데 어디가 좋아?')")
+
+
+class QueryParseResponse(BaseModel):
+    category: str | None = Field(None, description="추출된 업종. 확신 없으면 None")
+    region_matches: list[RegionInfo] = Field(
+        default_factory=list, description="/api/regions 목록과 대조해 검증된 지역 후보. 0곳=매칭 실패, 2곳 이상=모호함"
+    )
+    needs_clarification: bool = Field(
+        ..., description="True면 업종 미확정이거나 지역이 0곳/2곳 이상이라 사용자 확인이 필요함"
+    )
+    message: str = Field(..., description="사용자에게 보여줄 안내 문구")

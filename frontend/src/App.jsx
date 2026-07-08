@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import DongMap from "./components/DongMap"
 import AnalysisPanel from "./components/AnalysisPanel"
 import RegionDetailModal from "./components/RegionDetailModal"
-import { fetchBulkScores, fetchRegions, fetchReport } from "./api"
+import QueryBar from "./components/QueryBar"
+import { fetchBulkScores, fetchRegions, fetchReport, parseQuery } from "./api"
 import "./App.css"
 
 const CATEGORIES = ["카페", "음식점", "편의점", "미용실"]
@@ -14,6 +15,8 @@ function App() {
   const [regions, setRegions] = useState([]) // 검색 필터링용 행정동 목록(region_id -> 이름)
   const [analysis, setAnalysis] = useState({ status: "idle" })
   const [modal, setModal] = useState({ open: false })
+  const [nlQuery, setNlQuery] = useState({ status: "idle" })
+  const skipNextResetRef = useRef(false) // 자연어 질의가 업종을 바꿀 때, 아래 idle 리셋 이펙트가 로딩 상태를 덮어쓰지 않도록
 
   useEffect(() => {
     let cancelled = false
@@ -27,16 +30,23 @@ function App() {
 
   // 업종이 바뀌면 이전 업종 기준 분석 결과는 더 이상 유효하지 않으므로 비운다
   useEffect(() => {
+    if (skipNextResetRef.current) {
+      skipNextResetRef.current = false
+      return
+    }
     setAnalysis({ status: "idle" })
   }, [category])
 
-  async function handleAnalyze() {
+  async function handleAnalyze(overrideCategory, overrideSearchQuery) {
+    const effectiveCategory = overrideCategory ?? category
+    const effectiveSearch = overrideSearchQuery ?? searchQuery
+
     setAnalysis({ status: "loading" })
     try {
-      const bulk = await fetchBulkScores(category)
+      const bulk = await fetchBulkScores(effectiveCategory)
       let candidates = bulk.scores
 
-      const query = searchQuery.trim()
+      const query = effectiveSearch.trim()
       if (query) {
         const nameById = new Map(regions.map((r) => [r.region_id, r.행정동명]))
         candidates = candidates.filter((c) => nameById.get(c.region_id)?.includes(query))
@@ -51,7 +61,7 @@ function App() {
         .slice(0, TOP_N)
         .map((c) => c.region_id)
 
-      const report = await fetchReport(topRegionIds, category)
+      const report = await fetchReport(topRegionIds, effectiveCategory)
       setAnalysis({
         status: "success",
         top3: report.candidates,
@@ -61,6 +71,33 @@ function App() {
       })
     } catch (err) {
       setAnalysis({ status: "error", error: err.message })
+    }
+  }
+
+  async function handleNaturalLanguageQuery(text) {
+    setNlQuery({ status: "loading" })
+    try {
+      const parsed = await parseQuery(text)
+
+      // 파악한 만큼은 항상 반영한다 — 모호하거나 실패해도 기존 드롭다운/검색으로
+      // 이어서 쓸 수 있도록 부분 결과를 그대로 채워준다.
+      if (parsed.category && parsed.category !== category) {
+        skipNextResetRef.current = true
+        setCategory(parsed.category)
+      }
+      if (parsed.region_matches.length === 1) {
+        setSearchQuery(parsed.region_matches[0].행정동명)
+      }
+
+      if (parsed.needs_clarification) {
+        setNlQuery({ status: "clarification", message: parsed.message })
+        return
+      }
+
+      setNlQuery({ status: "success", message: parsed.message })
+      await handleAnalyze(parsed.category, parsed.region_matches[0].행정동명)
+    } catch (err) {
+      setNlQuery({ status: "error", message: err.message })
     }
   }
 
@@ -103,13 +140,15 @@ function App() {
           />
           <button
             className="analyze-button"
-            onClick={handleAnalyze}
+            onClick={() => handleAnalyze()}
             disabled={analysis.status === "loading"}
           >
             {analysis.status === "loading" ? "분석 중…" : "분석하기"}
           </button>
         </div>
       </header>
+
+      <QueryBar nlQuery={nlQuery} onSubmit={handleNaturalLanguageQuery} />
 
       <main className="main-layout">
         <section className="map-area">

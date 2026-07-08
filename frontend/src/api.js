@@ -48,3 +48,15 @@ export function fetchReport(regionIds, category) {
     "리포트 생성 실패"
   )
 }
+
+export function parseQuery(query) {
+  return request(
+    `${API_BASE}/api/parse-query`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    },
+    "질의 분석 실패"
+  )
+}
