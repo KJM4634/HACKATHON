@@ -252,16 +252,6 @@
   overflow: hidden;
 }
 
-.breakdown-track-empty {
-  background: repeating-linear-gradient(
-    45deg,
-    var(--gridline),
-    var(--gridline) 4px,
-    transparent 4px,
-    transparent 8px
-  );
-}
-
 .breakdown-fill {
   height: 100%;
   border-radius: 4px;
@@ -396,12 +386,6 @@
   font-weight: 600;
   text-align: right;
   color: var(--text-primary);
-}
-
-.breakdown-value-muted {
-  font-weight: 400;
-  color: var(--text-muted);
-  font-size: 11px;
 }
 
 .track-a-section {

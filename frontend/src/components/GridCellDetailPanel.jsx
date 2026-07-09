@@ -101,11 +101,6 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
             </div>
           )
         })}
-        <div className="breakdown-row">
-          <span className="breakdown-label">접근성</span>
-          <div className="breakdown-track breakdown-track-empty" />
-          <span className="breakdown-value breakdown-value-muted">데이터 없음</span>
-        </div>
       </div>
 
       <p className="grid-competitor-info">
