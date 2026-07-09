@@ -1,4 +1,5 @@
 import { scoreToColor } from "../colorScale"
+import "./RegionDetailModal.css"
 import "./AnalysisPanel.css"
 
 function AnalysisPanel({ analysis, onCardClick }) {
@@ -36,9 +37,21 @@ function AnalysisPanel({ analysis, onCardClick }) {
 
   const { top3, reportText, isFallback } = analysis
 
+  // 예산이 신뢰도 범위 밖(30만~1,000만원 밖)이면 모든 후보가 같은 사유로 같은
+  // 경고를 받으므로, 카드마다 반복하지 않고 위에 한 번만 보여준다(RegionDetailModal의
+  // 대안 카드 처리와 같은 원칙).
+  const unreliableBudgetFit = top3.find((c) => c.budget_fit?.is_unreliable)?.budget_fit
+
   return (
     <>
       <h2>추천 입지 TOP {top3.length}</h2>
+
+      {unreliableBudgetFit && (
+        <p className="budget-fit-note budget-fit-note-warning">
+          예산 {Math.round(unreliableBudgetFit.monthly_budget_krw / 10_000)}만원 · {unreliableBudgetFit.label}
+        </p>
+      )}
+
       <ol className="top3-list">
         {top3.map((candidate, i) => (
           <li key={candidate.region.region_id}>
@@ -56,6 +69,9 @@ function AnalysisPanel({ analysis, onCardClick }) {
                 {candidate.score.total_score}점
               </span>
             </button>
+            {candidate.budget_fit && !candidate.budget_fit.is_unreliable && (
+              <p className="budget-fit-note budget-fit-note-inline">{candidate.budget_fit.label}</p>
+            )}
           </li>
         ))}
       </ol>
