@@ -21,6 +21,7 @@ from app.schemas import (
     ScoreResult,
 )
 from app.scoring import compute_score
+from app.trend import estimate_trend_fit
 
 router = APIRouter(prefix="/api", tags=["analyze"])
 
@@ -61,12 +62,14 @@ def _analyze_one(
     budget_fit = (
         estimate_budget_fit(monthly_budget_krw, score.breakdown.수익성) if monthly_budget_krw is not None else None
     )
+    trend = estimate_trend_fit(market_data.region.행정동코드, category)
     return AnalyzeResponse(
         region=market_data.region,
         category=category,
         score=score,
         market_data=market_data,
         budget_fit=budget_fit,
+        trend=trend,
     )
 
 

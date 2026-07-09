@@ -99,7 +99,15 @@ _SYSTEM_INSTRUCTION = """당신은 부울경(부산/울산/경남) 지역 상권
    예산 200만원 기준으로는, 이 지역 상권 규모에 비해 다소 부담될 수
    있습니다." 이건 실제 임대료를 계산한 게 아니라 상권 규모 대비 대략적인
    참고일 뿐이라는 뉘앙스를 유지하세요. "예산_참고" 필드가 없는 후보는 이
-   문장을 아예 쓰지 마세요."""
+   문장을 아예 쓰지 마세요.
+10. 후보 JSON에 "최근_추세_참고" 필드가 있다면, 그 후보를 설명하는 문단
+    어딘가에 자연스럽게 한 문장만 추가하세요. "최근_추세_참고.판단"의 취지를
+    그대로 살리되 단정하지 말고 "~로 보입니다", "~인 편입니다" 같은 완곡한
+    표현을 쓰세요 — 예: "최근 1년 사이 매출 흐름은 부산 평균보다 빠르게
+    성장하는 추세로 보입니다." 이건 예측이 아니라 지난 1년간의 흐름을
+    참고로 짚어주는 것일 뿐이니 "앞으로도 계속 성장할 것"처럼 미래를
+    단정하지 마세요. "최근_추세_참고" 필드가 없는 후보는 이 문장을 아예
+    쓰지 마세요."""
 
 
 def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
@@ -140,6 +148,14 @@ def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
             entry["예산_참고"] = {
                 "월세_예산_만원": round(c.budget_fit.monthly_budget_krw / 10_000),
                 "판단": c.budget_fit.label,
+            }
+        # data_available=False(이력 부족 행정동)면 Gemini에게 안 넘긴다 — 언급할
+        # 추세 자체가 없는 상태라, 억지로 "데이터가 없다"는 문장을 만들게 하지 않는다.
+        if c.trend and c.trend.data_available:
+            entry["최근_추세_참고"] = {
+                "이_동네_YoY_증감률(%)": c.trend.dong_yoy_pct,
+                "부산_전체_중앙값_YoY_증감률(%)": c.trend.city_median_yoy_pct,
+                "판단": c.trend.label,
             }
         payload.append(entry)
     return payload

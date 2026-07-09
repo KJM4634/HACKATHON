@@ -32,6 +32,7 @@ import pandas as pd
 from app.alternatives import LOW_SCORE_THRESHOLD, find_alternatives
 from app.data_provider.local.category_mapping import (
     CATEGORY_TO_RESTAURANT_UPTAE,
+    CATEGORY_TO_REVENUE_BUCKET,
     CATEGORY_TO_SANGGABU_KEYWORD,
     FOOD_SUBCATEGORIES,
     FOOD_SUBCATEGORY_TO_SANGGABU_JUNGBUNLYU,
@@ -60,7 +61,7 @@ from app.schemas import (
     ScoreResult,
     ScoreWeights,
 )
-from app.scoring import _CATEGORY_TO_REVENUE_BUCKET, _WEIGHTS  # scoring.py와 항상 같은 값 유지
+from app.scoring import _WEIGHTS  # scoring.py와 항상 같은 값 유지
 
 _CELL_SIZES_M = (100, 250, 500, 1000)
 _TARGET_CELL_COUNT = 50
@@ -240,7 +241,7 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
     dong_population = population.총인구수 if population else 0
 
     consumption = get_consumption_by_category_for_dong(region_id)
-    bucket = _CATEGORY_TO_REVENUE_BUCKET.get(category)
+    bucket = CATEGORY_TO_REVENUE_BUCKET.get(category)
     dong_revenue = next((c.평균이용금액 for c in consumption if c.업종대분류 == bucket), 0) if bucket else 0
 
     visit_inputs, population_inputs, revenue_inputs = [], [], []

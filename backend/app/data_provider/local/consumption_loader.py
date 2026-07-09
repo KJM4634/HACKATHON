@@ -30,6 +30,13 @@ def get_consumption_by_category_latest_month() -> pd.DataFrame:
     return df[df["기준년월"] == latest].copy()
 
 
+@lru_cache
+def get_consumption_by_category_all_months() -> pd.DataFrame:
+    """36개월(2023-01~2025-12) 전체 원본 — app/trend.py의 YoY 증감률 계산 전용.
+    나머지 함수들과 달리 최신월로 자르지 않는다."""
+    return pd.read_csv(_CATEGORY_PATH, encoding="utf-8")
+
+
 def get_consumption_by_hour_for_dong(행정동코드: str) -> list[ConsumptionByHour]:
     df = get_consumption_by_hour_latest_month()
     sub = df[df["행정동코드"] == int(행정동코드)].sort_values("시간대")

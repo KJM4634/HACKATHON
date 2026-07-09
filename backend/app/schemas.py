@@ -184,6 +184,24 @@ class BudgetFit(BaseModel):
     )
 
 
+class TrendFit(BaseModel):
+    """이 지역의 최근 매출 흐름을 부산 전체와 상대 비교한 "최근 추세" 참고 배지.
+    app/trend.py 참고. total_score 계산에는 전혀 반영되지 않는 보조 정보 —
+    budget_fit과 같은 패턴이다.
+
+    절대 증감률만 보여주면 "다들 오르는 시기라 이 동네도 오른 것"과 "이
+    동네만 특별히 뜨는 것"을 구분할 수 없어서(부산 206개 동 다수가 같은
+    방향으로 움직이는 계절성이 있음), 반드시 부산 전체 중앙값 대비 상대값으로
+    판단한다."""
+
+    data_available: bool = Field(
+        ..., description="False면 최근 1년치 이력이 부족해(신설/변경된 행정동 등) 추세를 계산하지 못했다는 뜻"
+    )
+    dong_yoy_pct: float | None = Field(None, description="이 동의 최근 3개월 평균 대비 작년 동기 증감률(%)")
+    city_median_yoy_pct: float | None = Field(None, description="부산 206개 동 동일 매출 버킷 증감률의 중앙값(%)")
+    label: str = Field(..., description="완곡한 상대적 참고 문구 (예: '최근 매출 흐름이 부산 평균보다 빠르게 성장하는 추세로 보입니다')")
+
+
 class AlternativeRegion(BaseModel):
     """이 지역보다 점수가 높고 가까운(3km 이내) 대안 후보."""
 
@@ -214,6 +232,12 @@ class AnalyzeResponse(BaseModel):
     )
     budget_fit: BudgetFit | None = Field(
         None, description="요청에 monthly_budget_krw가 있을 때만 채워짐. total_score 계산에는 전혀 반영되지 않는 참고용 부가 정보"
+    )
+    trend: TrendFit | None = Field(
+        None,
+        description="이 지역 매출의 최근 추세 참고 배지. /api/analyze, /api/report에서는 항상 채워지고, "
+        "격자 응답에는 이 필드 자체가 없음(행정동 단위 전용) — 스키마상 optional인 건 기존 테스트에서 "
+        "가벼운 스텁 AnalyzeResponse를 만들 때 매번 채우지 않아도 되게 하기 위함일 뿐, 실제 API 응답에서는 항상 값이 있다",
     )
 
 
