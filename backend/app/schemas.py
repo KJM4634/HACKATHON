@@ -342,7 +342,8 @@ class GridCellDetailResponse(BaseModel):
     별도 요청한다(app/llm/grid_report.py)."""
 
     cell_id: str
-    label: str = Field(..., description="예: '부산진구 부전2동 (격자 B-4)'")
+    label: str = Field(..., description="예: '부산진구 부전2동 내 선택 구역'")
+    행정동명: str = Field(..., description="label과 달리 꾸밈말 없는 순수 행정동명 — 외부 검색/조회 키로 쓰임(예: 리뷰 검색어 조합)")
     total_score: int
     breakdown: ScoreBreakdown
     competitor_count: int
