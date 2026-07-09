@@ -18,7 +18,7 @@ def _score_result(total_score, 배후수요=50, 경쟁강도=50, 수익성=50):
     return ScoreResult(
         total_score=total_score,
         breakdown=ScoreBreakdown(배후수요=배후수요, 경쟁강도=경쟁강도, 접근성=None, 수익성=수익성),
-        weights_used=ScoreWeights(배후수요=0.4375, 경쟁강도=0.375, 접근성=0.0, 수익성=0.1875),
+        weights_used=ScoreWeights(배후수요=0.3925, 경쟁강도=0.420, 접근성=0.0, 수익성=0.1875),
         data_limitations=[],
         is_placeholder=False,
     )

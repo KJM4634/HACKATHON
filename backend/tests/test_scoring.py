@@ -50,16 +50,19 @@ def _market_data(
 
 
 def test_weights_are_redistributed_after_dropping_accessibility():
-    """접근성 데이터가 없으니 0.35:0.30:0.15 비율을 유지한 채 합 1.0으로 재분배돼야 한다."""
+    """접근성 데이터가 없으니 가중치에서 제외되고(0.0), 나머지 세 지표 가중치 합은
+    1.0이어야 한다. 구체적인 배후수요/경쟁강도/수익성 비율은 PRD 원안 -> Track A
+    신호 블렌드 -> 상관관계 분석 기반 최종 조정을 거친 값이다(ARCHITECTURE.md
+    "가중치 조정의 통계적 한계" 참고)."""
     md = _market_data(50_000, 200_000, 50, True, 5.0, "음식/주점", 100_000_000)
     result = compute_score(md, "한식")
 
     weights = result.weights_used
     assert weights.접근성 == 0.0
     assert abs(weights.배후수요 + weights.경쟁강도 + weights.수익성 - 1.0) < 1e-9
-    assert abs(weights.배후수요 - 0.35 / 0.80) < 1e-6
-    assert abs(weights.경쟁강도 - 0.30 / 0.80) < 1e-6
-    assert abs(weights.수익성 - 0.15 / 0.80) < 1e-6
+    assert abs(weights.배후수요 - 0.3925) < 1e-6
+    assert abs(weights.경쟁강도 - 0.420) < 1e-6
+    assert abs(weights.수익성 - 0.1875) < 1e-6
     assert result.breakdown.접근성 is None
     assert any("접근성" in note for note in result.data_limitations)
 

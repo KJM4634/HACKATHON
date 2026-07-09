@@ -48,7 +48,7 @@ def _candidate(행정동명: str, total_score: int, 수익성: int = 40, alterna
     score = ScoreResult(
         total_score=total_score,
         breakdown=ScoreBreakdown(배후수요=50, 경쟁강도=50, 접근성=None, 수익성=수익성),
-        weights_used=ScoreWeights(배후수요=0.4375, 경쟁강도=0.375, 접근성=0.0, 수익성=0.1875),
+        weights_used=ScoreWeights(배후수요=0.3925, 경쟁강도=0.420, 접근성=0.0, 수익성=0.1875),
         data_limitations=["테스트 한계 사항"],
         is_placeholder=False,
     )
