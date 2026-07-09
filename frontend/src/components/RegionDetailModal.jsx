@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { scoreToColor } from "../colorScale"
 import { useCountUp } from "../useCountUp"
+import { useDelayedFlag } from "../useDelayedFlag"
 import "./RegionDetailModal.css"
 
 const BREAKDOWN_LABELS = [
@@ -16,6 +17,10 @@ const WEAK_THRESHOLD = 50 // 세부점수가 이보다 낮으면 "이 지표가 
 // 오버레이가 된다(RegionDetailModal.css의 .region-detail-panel 참고) — 지도를
 // 가리지 않으면서 대안 위치를 지도와 동시에 볼 수 있어야 한다는 요구사항 때문.
 function RegionDetailModal({ modal, category, onClose, onAlternativeClick }) {
+  // 언마운트 없이 재사용되는 모달이라(다른 지역을 열면 같은 컴포넌트가 props만
+  // 갈아탐) early return보다 앞에서 훅을 호출해야 한다(Hooks 규칙).
+  const isSlow = useDelayedFlag(modal.status === "loading", 5000)
+
   if (!modal.open) return null
 
   return (
@@ -27,7 +32,9 @@ function RegionDetailModal({ modal, category, onClose, onAlternativeClick }) {
       {modal.status === "loading" && (
         <div className="panel-loading modal-loading">
           <span className="spinner" aria-hidden="true" />
-          {modal.regionName ?? "지역"} 분석 중입니다…
+          {isSlow
+            ? "AI 리포트 생성에 시간이 조금 더 걸리고 있어요. 잠시만 기다려주세요…"
+            : `${modal.regionName ?? "지역"} 분석 중입니다…`}
         </div>
       )}
 

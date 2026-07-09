@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { scoreToColor } from "../colorScale"
+import { useDelayedFlag } from "../useDelayedFlag"
 import { SuccessStrategyPanel } from "./RegionDetailModal"
 import "./RegionDetailModal.css"
 import "./AnalysisPanel.css"
@@ -9,6 +10,9 @@ function AnalysisPanel({ analysis, onCardClick }) {
   // state를 두지 않고 "한 번에 하나만 펼침" 방식으로, RegionDetailModal의
   // lowScoreTab과 같은 단순함을 유지한다.
   const [expandedStrategyId, setExpandedStrategyId] = useState(null)
+  // Gemini 호출이 가끔 십수 초까지 걸릴 때, 계속 뜨는 로딩 화면을 "멈춘 것"으로
+  // 오해하지 않도록 5초 넘어가면 안내 문구를 바꿔준다.
+  const isSlow = useDelayedFlag(analysis.status === "loading", 5000)
 
   if (analysis.status === "idle") {
     return (
@@ -28,7 +32,9 @@ function AnalysisPanel({ analysis, onCardClick }) {
     return (
       <div className="panel-loading">
         <span className="spinner" aria-hidden="true" />
-        분석 중입니다… (지역 점수 계산 + AI 리포트 생성)
+        {isSlow
+          ? "AI 리포트 생성에 시간이 조금 더 걸리고 있어요. 잠시만 기다려주세요…"
+          : "분석 중입니다… (지역 점수 계산 + AI 리포트 생성)"}
       </div>
     )
   }
