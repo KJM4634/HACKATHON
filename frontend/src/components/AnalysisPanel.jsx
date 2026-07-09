@@ -1,8 +1,15 @@
+import { useState } from "react"
 import { scoreToColor } from "../colorScale"
+import { SuccessStrategyPanel } from "./RegionDetailModal"
 import "./RegionDetailModal.css"
 import "./AnalysisPanel.css"
 
 function AnalysisPanel({ analysis, onCardClick }) {
+  // early return(idle/loading/error) 앞에 둬야 한다(Hooks 규칙) — 카드마다 별도
+  // state를 두지 않고 "한 번에 하나만 펼침" 방식으로, RegionDetailModal의
+  // lowScoreTab과 같은 단순함을 유지한다.
+  const [expandedStrategyId, setExpandedStrategyId] = useState(null)
+
   if (analysis.status === "idle") {
     return (
       <>
@@ -53,32 +60,50 @@ function AnalysisPanel({ analysis, onCardClick }) {
       )}
 
       <ol className="top3-list">
-        {top3.map((candidate, i) => (
-          <li key={candidate.region.region_id}>
-            <button className="top3-card" onClick={() => onCardClick(candidate.region.region_id)}>
-              <span className="top3-rank">{i + 1}</span>
-              <span className="top3-name">
-                {candidate.region.행정동명}
-                {candidate.alternatives?.length > 0 && (
-                  <span className="top3-alt-badge" title="인근에 더 나은 대안이 있어요">
-                    ⚠ 대안 {candidate.alternatives.length}곳
-                  </span>
-                )}
-              </span>
-              <span className="top3-score" style={{ color: scoreToColor(candidate.score.total_score) }}>
-                {candidate.score.total_score}점
-              </span>
-            </button>
-            {candidate.trend?.data_available && (
-              <p className="trend-note trend-note-inline">
-                {candidate.trend.dong_yoy_pct > candidate.trend.city_median_yoy_pct ? "▲" : "▽"} {candidate.trend.label}
-              </p>
-            )}
-            {candidate.budget_fit && !candidate.budget_fit.is_unreliable && (
-              <p className="budget-fit-note budget-fit-note-inline">{candidate.budget_fit.label}</p>
-            )}
-          </li>
-        ))}
+        {top3.map((candidate, i) => {
+          const hasAlternatives = candidate.alternatives?.length > 0
+          const isStrategyExpanded = expandedStrategyId === candidate.region.region_id
+          return (
+            <li key={candidate.region.region_id}>
+              <button className="top3-card" onClick={() => onCardClick(candidate.region.region_id)}>
+                <span className="top3-rank">{i + 1}</span>
+                <span className="top3-name">
+                  {candidate.region.행정동명}
+                  {hasAlternatives && (
+                    <span className="top3-alt-badge" title="인근에 더 나은 대안이 있어요">
+                      ⚠ 대안 {candidate.alternatives.length}곳
+                    </span>
+                  )}
+                </span>
+                <span className="top3-score" style={{ color: scoreToColor(candidate.score.total_score) }}>
+                  {candidate.score.total_score}점
+                </span>
+              </button>
+              {candidate.trend?.data_available && (
+                <p className="trend-note trend-note-inline">
+                  {candidate.trend.dong_yoy_pct > candidate.trend.city_median_yoy_pct ? "▲" : "▽"} {candidate.trend.label}
+                </p>
+              )}
+              {candidate.budget_fit && !candidate.budget_fit.is_unreliable && (
+                <p className="budget-fit-note budget-fit-note-inline">{candidate.budget_fit.label}</p>
+              )}
+              {hasAlternatives && (
+                <button
+                  type="button"
+                  className="top3-strategy-toggle"
+                  onClick={() => setExpandedStrategyId(isStrategyExpanded ? null : candidate.region.region_id)}
+                >
+                  이곳에서 성공하려면 {isStrategyExpanded ? "▲" : "▼"}
+                </button>
+              )}
+              {hasAlternatives && isStrategyExpanded && (
+                <div className="low-score-section top3-strategy-panel">
+                  <SuccessStrategyPanel candidate={candidate} category={candidate.category} />
+                </div>
+              )}
+            </li>
+          )
+        })}
       </ol>
 
       <h2>AI 분석 리포트</h2>

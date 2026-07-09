@@ -200,7 +200,8 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
 // 점수가 낮아도 "그래도 여기서 하고 싶다"는 사용자를 위한 탭. 세부지표/경쟁현황은
 // 이미 받은 데이터로 바로 계산하고(추가 요청 없음), 차별화 전략만 백엔드가 미리
 // 생성해둔 candidate.differentiation_strategy를 그대로 보여준다.
-function SuccessStrategyPanel({ candidate, category }) {
+// AnalysisPanel(TOP-N 비교 화면)도 같은 콘텐츠를 재사용한다 — named export.
+export function SuccessStrategyPanel({ candidate, category }) {
   const { score, market_data: marketData, differentiation_strategy: strategy } = candidate
   const reasons = buildWeaknessReasons(score.breakdown, marketData, category)
 
