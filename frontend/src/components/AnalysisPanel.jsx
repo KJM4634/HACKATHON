@@ -85,10 +85,14 @@ function AnalysisPanel({ analysis, onCardClick }) {
                   {candidate.score.total_score}점
                 </span>
               </button>
-              {candidate.trend?.data_available && (
-                <p className="trend-note trend-note-inline">
-                  {candidate.trend.dong_yoy_pct > candidate.trend.city_median_yoy_pct ? "▲" : "▽"} {candidate.trend.label}
-                </p>
+              {candidate.trend && (
+                <div className={`trend-note trend-note-inline ${candidate.trend.data_available ? "" : "trend-note-muted"}`}>
+                  <p className="trend-note-main">
+                    {candidate.trend.data_available
+                      ? `${candidate.trend.dong_yoy_pct > candidate.trend.city_median_yoy_pct ? "▲" : "▽"} ${candidate.trend.label}`
+                      : candidate.trend.label}
+                  </p>
+                </div>
               )}
               {candidate.budget_fit && !candidate.budget_fit.is_unreliable && (
                 <p className="budget-fit-note budget-fit-note-inline">{candidate.budget_fit.label}</p>
