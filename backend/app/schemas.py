@@ -177,6 +177,11 @@ class BudgetFit(BaseModel):
 
     monthly_budget_krw: int = Field(..., ge=0, description="사용자가 입력한 예상 월세(원)")
     label: str = Field(..., description="완곡한 참고 문구 (예: '이 지역 상권 규모 대비 예산이 다소 부담될 수 있습니다')")
+    is_unreliable: bool = Field(
+        False,
+        description="True면 입력값이 현실적인 부산 상가 임대 시세 범위(30만~1,000만원)를 벗어나 "
+        "여유/보통/부담 판단을 하지 않고 신뢰도 경고만 담았다는 뜻 (app/budget.py 참고)",
+    )
 
 
 class AlternativeRegion(BaseModel):

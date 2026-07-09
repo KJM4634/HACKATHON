@@ -70,9 +70,10 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
       </div>
 
       {candidate.budget_fit && (
-        <p className="budget-fit-note">
-          예산 {Math.round(candidate.budget_fit.monthly_budget_krw / 10_000)}만원 기준 · {candidate.budget_fit.label}
-          (참고용, 확정적 계산 아님)
+        <p className={`budget-fit-note ${candidate.budget_fit.is_unreliable ? "budget-fit-note-warning" : ""}`}>
+          {candidate.budget_fit.is_unreliable
+            ? `예산 ${Math.round(candidate.budget_fit.monthly_budget_krw / 10_000)}만원 · ${candidate.budget_fit.label}`
+            : `예산 ${Math.round(candidate.budget_fit.monthly_budget_krw / 10_000)}만원 기준 · ${candidate.budget_fit.label}(참고용, 확정적 계산 아님)`}
         </p>
       )}
 
@@ -138,7 +139,12 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
                         {alt.score}점
                       </span>
                     </button>
-                    {alt.budget_fit && <p className="budget-fit-note budget-fit-note-inline">{alt.budget_fit.label}</p>}
+                    {/* is_unreliable이면 대안마다 똑같은 경고가 반복될 뿐이라(예산값 자체가
+                        문제라 어느 지역이든 결과가 같음) 위 candidate.budget_fit 경고
+                        하나로 충분하다 — 대안 카드에는 정상 판단일 때만 붙인다. */}
+                    {alt.budget_fit && !alt.budget_fit.is_unreliable && (
+                      <p className="budget-fit-note budget-fit-note-inline">{alt.budget_fit.label}</p>
+                    )}
                   </li>
                 ))}
               </ul>

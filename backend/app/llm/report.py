@@ -134,7 +134,9 @@ def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
                 }
                 for a in c.alternatives
             ]
-        if c.budget_fit:
+        # is_unreliable(입력값이 30만~1,000만원 범위 밖)이면 Gemini에게 아예 안 넘긴다 —
+        # "여유/부담" 판단 자체를 유보한 상태라 리포트에서 언급할 내용이 없다.
+        if c.budget_fit and not c.budget_fit.is_unreliable:
             entry["예산_참고"] = {
                 "월세_예산_만원": round(c.budget_fit.monthly_budget_krw / 10_000),
                 "판단": c.budget_fit.label,

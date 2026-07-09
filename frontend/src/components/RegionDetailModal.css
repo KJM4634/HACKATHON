@@ -184,6 +184,12 @@
   color: var(--text-muted);
 }
 
+.budget-fit-note-warning {
+  color: var(--status-warning);
+  background: color-mix(in srgb, var(--status-warning) 8%, transparent);
+  border-color: var(--status-warning);
+}
+
 .breakdown-bars {
   display: flex;
   flex-direction: column;
