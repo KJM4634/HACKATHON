@@ -180,7 +180,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
     // 잔잔하게 흘러가는 점선 애니메이션(connection-flow)이 이어받게 한다 —
     // 두 애니메이션이 같은 stroke-dashoffset을 동시에 건드리면 서로 충돌하므로
     // 성장 중에는 흐르는 애니메이션이 없는 별도 클래스를 쓴다.
-    const GROW_MS = 420
+    const GROW_MS = 650 // 발표 시연에서도 눈에 띄게(원래 420ms) — "기다리는 느낌"이 들지 않는 선까지만 늘림
     const timers = []
     alternatives.forEach((alt, i) => {
       const latlng = [alt.region.위도, alt.region.경도]
@@ -259,7 +259,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
 
     // 셀이 몇 개든(우1동처럼 100개 넘어도) 전체 등장 시간이 SPREAD_MS를 넘지 않도록
     // 셀당 지연을 셀 수에 반비례하게 잡는다 — 그래야 "순차 등장"이 곧 "느려짐"이 되지 않는다.
-    const SPREAD_MS = 280
+    const SPREAD_MS = 500 // 발표 시연에서도 눈에 띄게(원래 280ms) — "기다리는 느낌"이 들지 않는 선까지만 늘림
     const cellCount = gridOverlay.cells.length
     const perCellDelay = cellCount > 1 ? SPREAD_MS / cellCount : 0
 
