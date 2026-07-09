@@ -134,7 +134,8 @@
 
 .grid-cell-rect {
   cursor: pointer;
-  transition: filter 0.1s ease, fill-opacity 220ms ease-out, opacity 220ms ease-out;
+  transition: filter 0.1s ease, fill-opacity 220ms ease-out, opacity 220ms ease-out, stroke 0.2s ease,
+    stroke-width 0.2s ease;
 }
 
 .grid-cell-rect:hover {

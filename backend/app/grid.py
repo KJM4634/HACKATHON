@@ -110,14 +110,22 @@ class _Cell:
     def cell_id(self) -> str:
         return f"{self.row}_{self.col}"
 
-    @property
-    def label(self) -> str:
-        col_letter = chr(ord("A") + self.col) if self.col < 26 else f"C{self.col}"
-        return f"{col_letter}-{self.row + 1}"
+
+def _dong_label(행정동명: str) -> str:
+    """격자 셀의 RegionInfo.행정동명으로 쓴다(대안 목록에 주로 노출됨). 좌표
+    기반 셀 ID(예: "I-8")는 cell_id로 내부 로직(요청 파라미터·캐시 키)에서만
+    쓰고, 사용자에게 보이는 텍스트에는 노출하지 않는다 — 지도에서는 대신
+    선택된 셀에 테두리를 그려서 위치를 보여준다(프론트 DongMap.jsx의
+    SELECTED_CELL_STYLE). 대안이 여럿이면 전부 같은 행정동 안이라 이름만으로는
+    구분이 안 되는데, 이건 의도된 것이다 — distance_km/total_score로 구분한다."""
+    return f"{행정동명} 내 다른 구역"
 
 
-def _label_for_dong(행정동명: str, cell: _Cell) -> str:
-    return f"{행정동명} (격자 {cell.label})"
+def _selected_cell_label(행정동명: str) -> str:
+    """GridCellDetailResponse.label(상세 패널 제목)에만 쓰는, "지금 선택된 것"
+    임을 알려주는 문구 — 대안 목록(_dong_label)은 여러 셀이 동시에 나열되므로
+    전부 "선택"이라고 하면 안 돼서 별도로 둔다."""
+    return f"{행정동명} 내 선택 구역"
 
 
 def _generate_cells(feature: dict, cell_size_m: int) -> list[_Cell]:
@@ -323,7 +331,7 @@ def to_cell_detail(region_id: str, 행정동명: str, cells: list, cell_id: str)
         region_by_id[cell_region_id] = RegionInfo(
             region_id=cell_region_id,
             행정동코드=region_id,
-            행정동명=_label_for_dong(행정동명, cell),
+            행정동명=_dong_label(행정동명),
             시도명="부산광역시",
             시군구명="",
             위도=cell.center_lat,
@@ -348,7 +356,7 @@ def to_cell_detail(region_id: str, 행정동명: str, cells: list, cell_id: str)
 
     return GridCellDetailResponse(
         cell_id=cell_id,
-        label=_label_for_dong(행정동명, target),
+        label=_selected_cell_label(행정동명),
         total_score=target.total_score,
         breakdown=target.breakdown,
         competitor_count=target.competitor_count,

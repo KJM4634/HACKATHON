@@ -307,6 +307,7 @@ function App() {
             connections={mapConnections}
             gridOverlay={gridOverlay}
             onGridCellClick={openGridCell}
+            selectedCellId={gridCell.open ? gridCell.cellId : null}
           />
         </section>
 

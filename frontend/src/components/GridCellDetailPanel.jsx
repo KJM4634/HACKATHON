@@ -129,7 +129,7 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
                     className="alternative-card"
                     onClick={() => onAlternativeClick(alt.region.region_id.slice(alt.region.region_id.indexOf("_") + 1))}
                   >
-                    <span className="alternative-name">{alt.region.행정동명.match(/격자 [^)]+/)?.[0] ?? alt.region.행정동명}</span>
+                    <span className="alternative-name">{alt.region.행정동명}</span>
                     <span className="alternative-distance">{alt.distance_km}km</span>
                     <span className="alternative-score" style={{ color: scoreToColor(alt.score) }}>
                       {alt.score}점

@@ -27,6 +27,12 @@ const HIGHLIGHT_STYLE = {
 const ORIGIN_COLOR = "#d03b3b"
 const ALTERNATIVE_COLOR = "#0ca30c"
 
+// 격자 셀 선택 테두리 — TOP3 강조(HIGHLIGHT_STYLE, 주황)와 헷갈리지 않도록 이
+// 지도에서 아직 안 쓰인 색(파란색 계열)을 새로 쓴다. 나머지 팔레트는 전부
+// 따뜻한 색(주황/빨강/초록)이라 파란색이 "지금 선택된 것"으로 눈에 확 띈다.
+const SELECTED_CELL_STYLE = { color: "#2563eb", weight: 4 }
+const UNSELECTED_CELL_STYLE = { color: "#fff", weight: 1 }
+
 // GeoJSON의 adm_nm은 "부산광역시 OO구 OO동"이지만, TOP3 카드·상세 팝업 등
 // 나머지 화면은 전부 백엔드 RegionInfo.행정동명("OO구 OO동", 시도명 없이) 형식을
 // 쓴다. 표기를 통일하려고 지도 쪽에서 시도명만 잘라낸다.
@@ -34,12 +40,21 @@ function stripSido(name) {
   return name.replace(/^부산광역시\s*/, "")
 }
 
-function DongMap({ category, onRegionClick, highlightRegionIds, connections, gridOverlay, onGridCellClick }) {
+function DongMap({
+  category,
+  onRegionClick,
+  highlightRegionIds,
+  connections,
+  gridOverlay,
+  onGridCellClick,
+  selectedCellId,
+}) {
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
   const geoLayerRef = useRef(null)
   const connectionsLayerRef = useRef(null)
   const gridLayerRef = useRef(null)
+  const gridCellLayersRef = useRef(new Map()) // cell_id -> L.rectangle, 선택 테두리 갱신용
   const scoresRef = useRef({})
   const highlightRef = useRef(new Set())
   const onRegionClickRef = useRef(onRegionClick)
@@ -249,6 +264,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
     if (!map || !layer) return
 
     layer.clearLayers()
+    gridCellLayersRef.current.clear()
 
     if (!gridOverlay || gridOverlay.status !== "success") {
       geoLayer?.setStyle({ fillOpacity: BASE_STYLE.fillOpacity })
@@ -278,6 +294,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
         .bindTooltip(`${cell.total_score}점`, { sticky: true })
         .on("click", () => onGridCellClickRef.current?.(cell.cell_id))
         .addTo(layer)
+      gridCellLayersRef.current.set(cell.cell_id, rect)
 
       timers.push(
         window.setTimeout(() => {
@@ -294,6 +311,17 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
 
     return () => timers.forEach((id) => window.clearTimeout(id))
   }, [gridOverlay])
+
+  // 격자 셀 하나를 선택하면(GridCellDetailPanel이 열림) 그 셀에 파란 테두리를 입혀서
+  // "지금 보고 있는 위치가 여기다"를 지도에서 바로 알 수 있게 한다 — 좌표 기반
+  // 셀 ID(예: "I-8")를 텍스트로 보여주는 대신 시각적 표시로 대체한 것.
+  useEffect(() => {
+    gridCellLayersRef.current.forEach((rect, cellId) => {
+      const selected = cellId === selectedCellId
+      rect.setStyle(selected ? SELECTED_CELL_STYLE : UNSELECTED_CELL_STYLE)
+      if (selected) rect.bringToFront()
+    })
+  }, [selectedCellId, gridOverlay])
 
   return (
     <div className="dong-map-wrap">

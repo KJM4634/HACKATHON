@@ -1,5 +1,3 @@
-import re
-
 from fastapi import APIRouter, HTTPException
 
 from app.data_provider import get_data_provider
@@ -26,14 +24,6 @@ _grid_cache: dict[tuple[str, str], tuple[list, int, str]] = {}
 # report.py와 같은 이유로 is_fallback=True는 캐시하지 않는다(일시적 장애가 풀린 뒤에도
 # 기본 문장이 영영 굳어버리는 걸 막기 위함).
 _cell_report_cache: dict[tuple[str, str, str], GridCellReportResponse] = {}
-
-
-def _grid_label_only(label: str) -> str:
-    """"부산진구 부전2동 (격자 H-1)" -> "격자 H-1". 대안 목록을 Gemini 프롬프트에
-    넣을 때 행정동명이 중복 반복되는 걸 막는다(프론트 GridCellDetailPanel.jsx가
-    카드에 표시할 때 쓰는 것과 같은 방식)."""
-    match = re.search(r"격자 [^)]+", label)
-    return match.group(0) if match else label
 
 
 def _get_or_compute_cells(region_id: str, category: str) -> tuple[list, int, str]:
@@ -95,9 +85,10 @@ def get_grid_cell_report(req: GridCellReportRequest) -> GridCellReportResponse:
         closure_available=detail.closure_available,
         closure_rate=detail.closure_rate,
         closure_sample=detail.closure_sample,
+        # "라벨" 없이 거리/점수만 넘긴다 — 대안도 전부 같은 행정동 안 격자라 이름으로는
+        # 구분이 안 되고(좌표 기반 셀 ID는 노출하지 않기로 함), 거리로 구분하면 충분하다.
         alternatives=[
-            {"라벨": _grid_label_only(alt.region.행정동명), "total_score": alt.score, "distance_km": alt.distance_km}
-            for alt in detail.alternatives
+            {"total_score": alt.score, "distance_km": alt.distance_km} for alt in detail.alternatives
         ],
     )
 
