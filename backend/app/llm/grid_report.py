@@ -1,20 +1,7 @@
-"""
-격자 셀 하나의 점수를 자연어로 해설한다. report.py(행정동 여러 곳 Top3 비교)와
-가장 다른 점: 이 점수는 부산 전체 기준이 아니라 "같은 행정동 안 격자들끼리의
-상대 비교"라서, 프롬프트에서 이 맥락을 반드시 짚어주지 않으면 Gemini가 절대
-점수처럼 착각한 문장을 쓸 위험이 있다 — _SYSTEM_INSTRUCTION 맨 앞에 명시해둔
-이유다.
-
-셀 클릭마다 자동으로 호출하지 않는다("AI 해설 보기" 버튼을 눌렀을 때만) — 격자가
-행정동 하나에 최대 100개 안팎이라, 자동 호출이면 Gemini 무료 티어 일일 한도를
-금방 다 쓴다. 호출부(app/api/grid.py)가 (region_id, category, cell_id) 키로
-캐싱해서 같은 셀을 다시 눌러도 재호출하지 않는다.
-"""
-
+# backend/app/llm/grid_report.py
 import json
 import logging
 import os
-
 from google import genai
 from google.genai import types
 
@@ -120,7 +107,6 @@ def _fallback_report(
     closure_rate: float,
     alternatives: list[dict],
 ) -> str:
-    """LLM 없이 숫자만으로 만드는 기본 템플릿 (PRD 8장과 같은 방식)."""
     lines = [
         f"{label}은 같은 행정동 안에서 비교했을 때 총점 {total_score}점입니다.",
         f"배후수요 {breakdown['배후수요']} / 경쟁강도 {breakdown['경쟁강도']} / 수익성 {breakdown['수익성']} (세부점수).",
@@ -132,7 +118,7 @@ def _fallback_report(
         lines.append("이 격자는 폐업률 표본이 부족해 경쟁업체 밀집도만 반영했습니다.")
     if alternatives:
         best = alternatives[0]
-        lines.append(f"같은 행정동 내 {best['라벨']}(총점 {best['total_score']}점)이 더 높은 점수를 기록했습니다.")
+        lines.append(f"같은 행정동 내 인접한 곳이 더 높은 점수를 기록했습니다.")
     return " ".join(lines)
 
 
@@ -147,13 +133,12 @@ def generate_grid_cell_report(
     closure_sample: int,
     alternatives: list[dict],
 ) -> tuple[str, bool]:
-    """(리포트 텍스트, is_fallback) 반환. LLM 실패 시 예외를 삼키고 폴백으로 대체."""
     payload = _build_cell_payload(
         label, total_score, breakdown, competitor_count, closure_available, closure_rate, closure_sample, alternatives
     )
     try:
         return _call_gemini(category, payload), False
-    except Exception as e:  # noqa: BLE001 — LLM 실패는 항상 폴백으로 흡수
+    except Exception as e:
         logger.warning("격자 셀 Gemini 리포트 생성 실패, 폴백 템플릿 사용: %s", e)
         return (
             _fallback_report(label, total_score, breakdown, competitor_count, closure_available, closure_rate, alternatives),

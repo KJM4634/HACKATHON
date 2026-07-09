@@ -287,6 +287,7 @@ class GridCellDetailResponse(BaseModel):
 
     cell_id: str
     label: str = Field(..., description="예: '부산진구 부전2동 (격자 B-4)'")
+    행정동명: str = Field(..., description="순수 행정동명 (검색/리뷰용)")
     total_score: int
     breakdown: ScoreBreakdown
     competitor_count: int

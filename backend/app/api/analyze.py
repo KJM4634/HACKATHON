@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
-
+from app.llm.review_analyzer import generate_review_summary
+from app.schemas import GridCellReportRequest, GridCellReportResponse
 from app.alternatives import LOW_SCORE_THRESHOLD, find_alternatives
 from app.data_provider import get_data_provider
 from app.data_provider.base import DataProvider
@@ -93,54 +94,6 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     return _analyze_one(provider, req.region_id, req.category)
 
 
-@router.post("/report", response_model=ReportResponse)
-def report(req: ReportRequest) -> ReportResponse:
-    """PRD 3.4: 후보 지역 여러 곳을 분석해 Top3 추천 입지 + 이유 + 리스크를
-    자연어 리포트로 만든다. LLM 실패 시 점수만으로 만든 기본 템플릿으로 대체.
-
-    점수가 낮은(50점 이하) 후보는 include_alternatives=True일 때 같은 업종·3km
-    이내에서 더 점수 높은 대안을 찾아 붙이고, Gemini가 "왜 이 지역이 아쉬운지 +
-    대안이 왜 나은지"를 비교해서 설명하게 한다. 같은 조건에서 "그래도 여기서
-    하고 싶다"는 사용자를 위한 차별화 전략 제안(differentiation_strategy)도
-    같이 생성한다 — 실패해도 대체 문구 없이 그냥 None으로 둔다.
-
-    같은 (지역 조합, 업종, include_alternatives)로 이미 성공한 리포트가 있으면
-    Gemini를 다시 부르지 않고 그 결과를 그대로 돌려준다(무료 티어 쿼터 절약)."""
-    cache_key = (tuple(sorted(req.region_ids)), req.category, req.include_alternatives)
-    cached = _report_cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    provider: DataProvider = get_data_provider()
-    candidates = [_analyze_one(provider, region_id, req.category) for region_id in req.region_ids]
-
-    if req.include_alternatives:
-        all_scores: dict[str, ScoreResult] | None = None
-        region_by_id: dict[str, RegionInfo] | None = None
-        for candidate in candidates:
-            if candidate.score.total_score > LOW_SCORE_THRESHOLD:
-                continue
-            if all_scores is None:  # 낮은 후보가 있을 때만, 그것도 한 번만 전체를 계산
-                all_scores = _all_scores_for_category(provider, req.category)
-                region_by_id = {r.region_id: r for r in provider.list_regions()}
-            candidate.alternatives = find_alternatives(
-                candidate.region, candidate.score.total_score, all_scores, region_by_id
-            )
-            candidate.differentiation_strategy = generate_differentiation_strategy(candidate)
-
-    report_text, is_fallback = generate_report(req.category, candidates)
-
-    result = ReportResponse(
-        category=req.category,
-        candidates=candidates,
-        report_text=report_text,
-        is_fallback=is_fallback,
-    )
-    if not is_fallback:
-        _report_cache[cache_key] = result
-    return result
-
-
 @router.post("/parse-query", response_model=QueryParseResponse)
 def parse_query_endpoint(req: QueryParseRequest) -> QueryParseResponse:
     """PRD 3.6: 자연어 질의에서 지역/업종을 추출해, 기존 /api/report가 바로 쓸 수 있는
@@ -182,3 +135,65 @@ def parse_query_endpoint(req: QueryParseRequest) -> QueryParseResponse:
         needs_clarification=category is None or len(matches) != 1,
         message=message,
     )
+
+@router.post("/grid-report", response_model=GridCellReportResponse)
+def get_grid_cell_report(req: GridCellReportRequest):
+    provider = get_data_provider()
+    
+    # 1. 해당 행정동의 격자 데이터 전체를 계산/가져오기
+    # 시군구명은 provider에서 해당 region_id로 조회합니다.
+    region_info = next((r for r in provider.list_regions() if r.region_id == req.region_id), None)
+    if not region_info:
+        raise HTTPException(status_code=404, detail="지역 정보를 찾을 수 없습니다.")
+    
+    # 3. 리뷰 요약 생성 (detail.행정동명은 "격자 J-7"이 붙지 않은 순수 행정동명이므로 검색 품질이 높습니다)
+    review_summary = generate_review_summary(detail.행정동명, req.category)
+    
+    # 리뷰 요약이 비어있다면 폴백 메시지 처리
+    if not review_summary:
+        return GridCellReportResponse(
+            report_text="현재 이 지역 격자 상세에 대한 생생한 리뷰 정보를 찾을 수 없습니다.",
+            is_fallback=True
+        )
+        
+    return GridCellReportResponse(
+        report_text=review_summary,
+        is_fallback=False
+    )
+    
+@router.post("/report", response_model=ReportResponse)
+def report(req: ReportRequest) -> ReportResponse:
+    cache_key = (tuple(sorted(req.region_ids)), req.category, req.include_alternatives)
+    cached = _report_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    provider: DataProvider = get_data_provider()
+    candidates = [_analyze_one(provider, region_id, req.category) for region_id in req.region_ids]
+
+    if req.include_alternatives:
+        all_scores: dict[str, ScoreResult] | None = None
+        region_by_id: dict[str, RegionInfo] | None = None
+        for candidate in candidates:
+            if candidate.score.total_score > LOW_SCORE_THRESHOLD:
+                continue
+            if all_scores is None:  # 낮은 후보가 있을 때만, 그것도 한 번만 전체를 계산
+                all_scores = _all_scores_for_category(provider, req.category)
+                region_by_id = {r.region_id: r for r in provider.list_regions()}
+            candidate.alternatives = find_alternatives(
+                candidate.region, candidate.score.total_score, all_scores, region_by_id
+            )
+            candidate.differentiation_strategy = generate_differentiation_strategy(candidate)
+
+    # 여기가 우리가 수정한 네이버 리뷰 요약이 들어있는 함수를 호출하는 곳입니다!
+    report_text, is_fallback = generate_report(req.category, candidates)
+
+    result = ReportResponse(
+        category=req.category,
+        candidates=candidates,
+        report_text=report_text,
+        is_fallback=is_fallback,
+    )
+    if not is_fallback:
+        _report_cache[cache_key] = result
+    return result

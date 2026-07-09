@@ -1,40 +1,15 @@
-"""
-PRD 3.4: 스코어링 엔진 출력(점수+세부지표)을 LLM에 넘겨 Top3 추천 입지 + 선정
-이유 + 리스크 요인을 자연어로 받는다.
-
-data_limitations(구 단위 인구 추정, 접근성 데이터 없음 등)는 리포트마다 거의
-똑같은 문구가 반복돼 개별 리포트를 읽는 재미/신뢰도를 떨어뜨렸다 — 이제 이
-정보는 Gemini에게 주지 않고, 프론트 페이지 하단의 고정 "데이터 안내" 섹션에서
-한 번만 보여준다(App.jsx). API 응답의 ScoreResult.data_limitations 필드
-자체는 그대로 남겨둔다 — 어떤 근거로 가중치가 재분배됐는지는 내부적으로/개발
-문서 용도로 계속 필요하다.
-
-LLM은 숫자를 재계산하지 않고 해설만 한다 — 점수 로직과 리포트 문장이 항상
-일치하도록 프롬프트에서 명시적으로 금지한다. Gemini API 호출이 실패하거나
-느리면(타임아웃) 점수만으로 만든 기본 템플릿 리포트로 대체한다(PRD 8장).
-
-Claude API 대신 Gemini(무료 티어)를 쓰기로 함에 따라 SDK 호출부만 google-genai로
-교체했고, 프롬프트 구조(무엇을 왜 지시하는지)는 그대로다.
-"""
-
+# backend/app/llm/report.py
 import json
 import logging
 import os
-
 from google import genai
 from google.genai import types
 
 from app.schemas import AnalyzeResponse
+from app.llm.review_analyzer import generate_review_summary
 
 logger = logging.getLogger(__name__)
 
-# gemini-2.5-flash와 gemini-2.5-flash-lite 둘 다 무료 티어 RPD가 20으로 동일함을
-# AI Studio 콘솔에서 직접 확인(2026-07-08) — "flash-lite가 더 높다"던 서드파티
-# 자료는 이 계정 기준으로는 틀렸다. gemini-3.1-flash-lite로 교체 — RPD 500(RPM
-# 15)으로 훨씬 여유롭고, Google이 gemini-2.5-flash-lite의 공식 후속(migration
-# target)으로 지정한 모델이라 임의 선택이 아니다. gemini-2.5-flash/flash-lite는
-# 2026-10-16 지원 종료 예정인 반면, gemini-3.1-flash-lite는 2027-05-07까지라
-# 여유가 더 있다(다만 이것도 영구적이진 않으니, 그 시점 전에 한 번 더 확인 필요).
 _MODEL = "gemini-3.1-flash-lite"
 _TIMEOUT_MS = 15_000
 _MAX_OUTPUT_TOKENS = 4096
@@ -91,15 +66,15 @@ _SYSTEM_INSTRUCTION = """당신은 부울경(부산/울산/경남) 지역 상권
       4의 완곡한 표현도 함께 지키세요).
    4) breakdown/total_score/distance_km에 없는 내용(임대료, 실제 유동인구
       특성 등)은 추측해서 말하지 마세요 — 반드시 주어진 숫자 안에서만 근거를
-      대세요."""
+      대세요.
+9. (긴급 예외 처리) 만약 제공된 데이터에서 '폐업률'이나 '동일업종_경쟁업체수'가 null 
+    이거나 0으로 표기되어 있다면, 상권이 나쁜 것이 아니라 "공공데이터 수집 누락"입니다.
+    이 경우 점수가 낮더라도 절대 무조건 부정적으로 평가하지 마세요. 대신 당신이 사전에 
+    학습한 해당 지역(행정동명)의 실제 번화가 정도, 지리적 특성, 유동인구 지식을 바탕으로 
+    AI의 자체적인 판단을 더해 상권의 잠재력을 평가하고 적극적으로 대안을 추천해 주세요."""
 
 
 def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
-    """점수+세부지표만 남긴 가벼운 JSON. 원자료 전체를 넘기지 않는 이유:
-    프롬프트를 짧게 유지하고, LLM이 원자료로 자기 점수를 만들어내려는 유혹을
-    줄이기 위함(위 규칙 1). data_limitations는 일부러 안 넣는다 — 리포트마다
-    거의 같은 문구가 반복돼서 개별 리포트에 안 어울렸고, 그 정보는 이제
-    페이지 하단 고정 안내에서 한 번만 보여준다."""
     payload = []
     for c in candidates:
         md = c.market_data
@@ -150,9 +125,6 @@ def _call_gemini(category: str, payload: list[dict]) -> str:
             system_instruction=_SYSTEM_INSTRUCTION,
             max_output_tokens=_MAX_OUTPUT_TOKENS,
             temperature=0.4,
-            # 이 리포트는 점수 재해석/요약일 뿐 복잡한 추론이 필요 없는데, thinking이
-            # 켜져 있으면 사고 토큰이 max_output_tokens를 먼저 소비해 본문이 잘렸다
-            # (실측: thoughts_token_count=934로 답변 본문이 중간에 끊김).
             thinking_config=types.ThinkingConfig(thinking_budget=0),
         ),
     )
@@ -163,17 +135,13 @@ def _call_gemini(category: str, payload: list[dict]) -> str:
 
 
 def _fallback_report(category: str, candidates: list[AnalyzeResponse]) -> str:
-    """LLM 없이 점수만으로 만드는 기본 템플릿 (PRD 8장: LLM 실패 시 대응).
-
-    대안 비교는 Gemini의 해설 없이도 핵심 정보(어디가, 몇 점 차이로, 얼마나
-    가까운지)는 전달되게 한 줄만 덧붙인다."""
     ranked = sorted(candidates, key=lambda c: c.score.total_score, reverse=True)
     lines = [f"[{category}] 후보 {len(ranked)}곳 점수 요약 (AI 리포트 생성 실패로 기본 요약을 표시합니다)", ""]
     for i, c in enumerate(ranked, start=1):
         b = c.score.breakdown
         lines.append(
             f"{i}. {c.region.행정동명} — 총점 {c.score.total_score}점 "
-            f"(배후수요 {b.배후수요} / 경쟁강도 {b.경쟁강도} / 수익성 {b.수익성})"
+            f"(배후수요 {b.배후수요} /경쟁강도 {b.경쟁강도} / 수익성 {b.수익성})"
         )
         if c.alternatives:
             alt_text = ", ".join(f"{a.region.행정동명}({a.score}점, {a.distance_km}km)" for a in c.alternatives)
@@ -185,7 +153,16 @@ def generate_report(category: str, candidates: list[AnalyzeResponse]) -> tuple[s
     """(리포트 텍스트, is_fallback) 반환. LLM 실패 시 예외를 삼키고 폴백 리포트로 대체."""
     payload = _build_candidate_payload(candidates)
     try:
-        return _call_gemini(category, payload), False
-    except Exception as e:  # noqa: BLE001 — LLM 실패는 항상 폴백으로 흡수
+        main_report_text = _call_gemini(category, payload)
+        
+        # 클릭한 메인 지역에 대해서만 네이버 블로그 리뷰 분석 추가
+        if candidates and len(candidates) > 0:
+            target_region_name = candidates[0].region.행정동명
+            review_summary = generate_review_summary(target_region_name, category)
+            if review_summary:
+                main_report_text += f"\n\n{review_summary}"
+
+        return main_report_text, False
+    except Exception as e:
         logger.warning("Gemini 리포트 생성 실패, 폴백 템플릿 사용: %s", e)
         return _fallback_report(category, candidates), True

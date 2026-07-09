@@ -1,10 +1,14 @@
 import re
+import json
+import logging
+import os
 
 from fastapi import APIRouter, HTTPException
 
 from app.data_provider import get_data_provider
 from app.grid import compute_grid, to_cell_detail, to_grid_response
 from app.llm.grid_report import generate_grid_cell_report
+from app.llm.review_analyzer import generate_review_summary  # 🚀 네이버 리뷰 함수 import
 from app.schemas import (
     GridCellDetailRequest,
     GridCellDetailResponse,
@@ -15,23 +19,14 @@ from app.schemas import (
 
 router = APIRouter(prefix="/api/grid", tags=["grid"])
 
-# (region_id, category) -> (cells, cell_size_m, 행정동명). GET /api/grid가 이미 한 번
-# 계산한 결과를 셀 클릭(POST /api/grid/cell)이 재사용한다 — report.py의 _report_cache와
-# 같은 이유(같은 계산 다시 하지 않기). 프로세스 메모리 캐시라 재시작하면 비워진다.
+# (region_id, category) -> (cells, cell_size_m, 행정동명) 캐시
 _grid_cache: dict[tuple[str, str], tuple[list, int, str]] = {}
 
-# (region_id, category, cell_id) -> GridCellReportResponse. "AI 해설 보기" 버튼을
-# 누를 때만 Gemini를 호출하고, 같은 셀을 다시 누르면 이 캐시를 그대로 돌려준다 —
-# 격자가 행정동 하나에 최대 100개 안팎이라 무료 티어 일일 한도를 지키려면 필수.
-# report.py와 같은 이유로 is_fallback=True는 캐시하지 않는다(일시적 장애가 풀린 뒤에도
-# 기본 문장이 영영 굳어버리는 걸 막기 위함).
+# (region_id, category, cell_id) -> GridCellReportResponse 캐시
 _cell_report_cache: dict[tuple[str, str, str], GridCellReportResponse] = {}
 
 
 def _grid_label_only(label: str) -> str:
-    """"부산진구 부전2동 (격자 H-1)" -> "격자 H-1". 대안 목록을 Gemini 프롬프트에
-    넣을 때 행정동명이 중복 반복되는 걸 막는다(프론트 GridCellDetailPanel.jsx가
-    카드에 표시할 때 쓰는 것과 같은 방식)."""
     match = re.search(r"격자 [^)]+", label)
     return match.group(0) if match else label
 
@@ -73,8 +68,6 @@ def get_grid_cell_detail(req: GridCellDetailRequest) -> GridCellDetailResponse:
 
 @router.post("/cell/report", response_model=GridCellReportResponse)
 def get_grid_cell_report(req: GridCellReportRequest) -> GridCellReportResponse:
-    """"AI 해설 보기"를 눌렀을 때만 호출되는 엔드포인트. 셀 클릭(POST /api/grid/cell)과
-    분리해둔 이유는 app/llm/grid_report.py 모듈 docstring 참고."""
     cache_key = (req.region_id, req.category, req.cell_id)
     cached = _cell_report_cache.get(cache_key)
     if cached is not None:
@@ -82,10 +75,12 @@ def get_grid_cell_report(req: GridCellReportRequest) -> GridCellReportResponse:
 
     cells, _, 행정동명 = _get_or_compute_cells(req.region_id, req.category)
     try:
+        # 🚀 클로드가 찾아낸 버그 수정: 여기서 행정동명을 넣어주면 detail.행정동명 필드에 순수 이름이 저장됨
         detail = to_cell_detail(req.region_id, 행정동명, cells, req.cell_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
+    # 원래 잘 돌아가던 제미나이 격자 해설(숫자 요약) 글 받기
     report_text, is_fallback = generate_grid_cell_report(
         category=req.category,
         label=detail.label,
@@ -101,7 +96,15 @@ def get_grid_cell_report(req: GridCellReportRequest) -> GridCellReportResponse:
         ],
     )
 
-    result = GridCellReportResponse(report_text=report_text, is_fallback=is_fallback)
+    # 🚀 [우리의 꼼수 추가] "격자 J-7"이 빠진 순수한 동네 이름(detail.행정동명)으로 네이버 리뷰 요약 불러오기!
+    review_summary = generate_review_summary(detail.행정동명, req.category)
+
+    # 두 텍스트를 엔터 두 번 치고 하나로 합체!
+    final_text = report_text
+    if review_summary:
+        final_text += f"\n\n{review_summary}"
+
+    result = GridCellReportResponse(report_text=final_text, is_fallback=is_fallback)
     if not is_fallback:
         _cell_report_cache[cache_key] = result
     return result

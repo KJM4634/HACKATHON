@@ -348,6 +348,7 @@ def to_cell_detail(region_id: str, 행정동명: str, cells: list, cell_id: str)
     return GridCellDetailResponse(
         cell_id=cell_id,
         label=_label_for_dong(행정동명, target),
+        행정동명=행정동명,
         total_score=target.total_score,
         breakdown=target.breakdown,
         competitor_count=target.competitor_count,
