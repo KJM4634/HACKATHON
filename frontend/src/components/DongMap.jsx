@@ -327,7 +327,9 @@ function DongMap({
 
       timers.push(
         window.setTimeout(() => {
-          rect.setStyle({ fillOpacity: 0.75, opacity: 1 })
+          // 채우기만 연하게(행정동 히트맵과 같은 BASE_STYLE.fillOpacity) — 테두리(opacity)는
+          // 그대로 완전 불투명 유지해서 지도 배경(도로·지명)이 함께 보이게 한다.
+          rect.setStyle({ fillOpacity: BASE_STYLE.fillOpacity, opacity: 1 })
         }, i * perCellDelay)
       )
 
