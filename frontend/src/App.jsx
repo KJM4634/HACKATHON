@@ -35,6 +35,10 @@ function App() {
   // 그 아래 서브탭 선택값을 쓰고, 아니면 최상위 탭 값 그대로 쓴다.
   const category = topCategory === "음식점" ? foodSubcategory : topCategory
   const [searchQuery, setSearchQuery] = useState("")
+  // 예상 월세 예산(선택 입력, 만원 단위 문자열) — 업종/검색과 달리 사용자의
+  // 예산은 업종을 바꿔도 유효한 값이라 카테고리 변경 리셋 이펙트 대상에서 뺐다.
+  const [budgetInput, setBudgetInput] = useState("")
+  const monthlyBudgetKrw = budgetInput.trim() && Number(budgetInput) > 0 ? Math.round(Number(budgetInput) * 10_000) : null
   const [regions, setRegions] = useState([]) // 검색 필터링용 행정동 목록(region_id -> 이름)
   const [analysis, setAnalysis] = useState({ status: "idle" })
   const [modal, setModal] = useState({ open: false })
@@ -102,7 +106,7 @@ function App() {
         .slice(0, TOP_N)
         .map((c) => c.region_id)
 
-      const report = await fetchReport(topRegionIds, effectiveCategory)
+      const report = await fetchReport(topRegionIds, effectiveCategory, monthlyBudgetKrw)
       setAnalysis({
         status: "success",
         top3: report.candidates,
@@ -160,7 +164,7 @@ function App() {
     setModal({ open: true, status: "loading", regionId, regionName })
     setGridCell({ open: false }) // 다른 동을 열면 이전에 보던 셀 상세는 닫음
 
-    const reportPromise = fetchReport([regionId], effectiveCategory)
+    const reportPromise = fetchReport([regionId], effectiveCategory, monthlyBudgetKrw)
       .then((report) => {
         const candidate = report.candidates[0]
         setModal({
@@ -244,6 +248,16 @@ function App() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+          />
+          <input
+            type="number"
+            min="0"
+            step="10"
+            className="budget-input"
+            placeholder="예상 월세(선택, 만원)"
+            value={budgetInput}
+            onChange={(e) => setBudgetInput(e.target.value)}
+            title="입력하면 이 지역 상권 규모 대비 예산이 감당 가능한 편인지 참고 문구를 함께 보여줍니다 (확정적 계산 아님)"
           />
           <button
             className="analyze-button"

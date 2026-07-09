@@ -37,13 +37,17 @@ export function fetchRegions() {
   return request(`${API_BASE}/api/regions`, undefined, "지역 목록 조회 실패")
 }
 
-export function fetchReport(regionIds, category) {
+export function fetchReport(regionIds, category, monthlyBudgetKrw) {
   return request(
     `${API_BASE}/api/report`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ region_ids: regionIds, category }),
+      body: JSON.stringify({
+        region_ids: regionIds,
+        category,
+        monthly_budget_krw: monthlyBudgetKrw ?? null,
+      }),
     },
     "리포트 생성 실패"
   )

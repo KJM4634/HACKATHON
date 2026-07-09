@@ -206,6 +206,10 @@
   color: var(--text-muted);
 }
 
+.topbar-controls .budget-input {
+  width: 160px;
+}
+
 .analyze-button {
   font: inherit;
   font-size: 14px;
@@ -324,7 +328,8 @@
     margin-left: 0;
   }
 
-  .topbar-controls input {
+  .topbar-controls input,
+  .topbar-controls .budget-input {
     width: auto;
     flex: 1 1 120px;
     min-width: 0;

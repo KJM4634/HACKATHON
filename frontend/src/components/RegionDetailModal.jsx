@@ -69,6 +69,13 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
         <p className="gauge-caption">종합 생존 가능성 점수</p>
       </div>
 
+      {candidate.budget_fit && (
+        <p className="budget-fit-note">
+          예산 {Math.round(candidate.budget_fit.monthly_budget_krw / 10_000)}만원 기준 · {candidate.budget_fit.label}
+          (참고용, 확정적 계산 아님)
+        </p>
+      )}
+
       <h3 className="modal-subheading">세부 지표</h3>
       <div className="breakdown-bars">
         {BREAKDOWN_LABELS.map(({ key, label }) => {
@@ -131,6 +138,7 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
                         {alt.score}점
                       </span>
                     </button>
+                    {alt.budget_fit && <p className="budget-fit-note budget-fit-note-inline">{alt.budget_fit.label}</p>}
                   </li>
                 ))}
               </ul>

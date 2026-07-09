@@ -167,6 +167,18 @@ class AnalyzeRequest(BaseModel):
     category: str = Field(..., description="사용자가 선택한 업종 (예: '카페')")
 
 
+class BudgetFit(BaseModel):
+    """사용자가 입력한 예상 월세 예산과, 이미 계산된 수익성 점수(0~100, 206개
+    행정동 실측 분포 기준 상대 위치)를 교차한 참고용 판단. app/budget.py 참고.
+
+    확정적 계산이 아니다 — 실제 부산 상가 임대료(개별 점포 단위) 데이터를 구할 수
+    없어서(ARCHITECTURE.md 참고), 이 지역 상권 규모(수익성 점수)에 비해 사용자
+    예산이 상대적으로 큰지 작은지만 대략적으로 가늠한다."""
+
+    monthly_budget_krw: int = Field(..., ge=0, description="사용자가 입력한 예상 월세(원)")
+    label: str = Field(..., description="완곡한 참고 문구 (예: '이 지역 상권 규모 대비 예산이 다소 부담될 수 있습니다')")
+
+
 class AlternativeRegion(BaseModel):
     """이 지역보다 점수가 높고 가까운(3km 이내) 대안 후보."""
 
@@ -175,6 +187,9 @@ class AlternativeRegion(BaseModel):
     distance_km: float = Field(..., ge=0)
     breakdown: ScoreBreakdown = Field(
         ..., description="LLM이 '구체적으로 왜 더 나은지' 지어내지 않고 실제 지표로 말할 수 있게 제공"
+    )
+    budget_fit: BudgetFit | None = Field(
+        None, description="요청에 monthly_budget_krw가 있을 때만 채워짐"
     )
 
 
@@ -191,6 +206,9 @@ class AnalyzeResponse(BaseModel):
         None,
         description="총점이 낮을 때 Gemini가 제안하는 차별화 전략(참고용, 확정적 조언 아님). "
         "alternatives와 같은 조건에서만 채워지고, Gemini 실패 시에도 None(억지 대체 문구 없음)",
+    )
+    budget_fit: BudgetFit | None = Field(
+        None, description="요청에 monthly_budget_krw가 있을 때만 채워짐. total_score 계산에는 전혀 반영되지 않는 참고용 부가 정보"
     )
 
 
@@ -216,6 +234,11 @@ class ReportRequest(BaseModel):
     category: str = Field(..., description="사용자가 선택한 업종 (예: '카페')")
     include_alternatives: bool = Field(
         True, description="True면 점수가 낮은 후보에 대해 인근 대안 지역을 찾아 리포트에 비교 반영"
+    )
+    monthly_budget_krw: int | None = Field(
+        None,
+        ge=0,
+        description="사용자가 입력한 예상 월세 예산(원, 선택 입력). 없으면 budget_fit을 아예 계산하지 않음",
     )
 
 

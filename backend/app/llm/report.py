@@ -91,7 +91,15 @@ _SYSTEM_INSTRUCTION = """당신은 부울경(부산/울산/경남) 지역 상권
       4의 완곡한 표현도 함께 지키세요).
    4) breakdown/total_score/distance_km에 없는 내용(임대료, 실제 유동인구
       특성 등)은 추측해서 말하지 마세요 — 반드시 주어진 숫자 안에서만 근거를
-      대세요."""
+      대세요.
+9. 후보 JSON에 "예산_참고" 필드가 있다면(사용자가 예상 월세 예산을 입력한
+   경우), 그 후보를 설명하는 문단 중간에 자연스럽게 한 문장만 추가하세요.
+   "예산_참고.판단"에 있는 문구의 취지를 그대로 살리되 단정하지 말고, 예산
+   금액(만원 단위로 반올림해서 언급)과 함께 완곡하게 쓰세요 — 예: "말씀하신
+   예산 200만원 기준으로는, 이 지역 상권 규모에 비해 다소 부담될 수
+   있습니다." 이건 실제 임대료를 계산한 게 아니라 상권 규모 대비 대략적인
+   참고일 뿐이라는 뉘앙스를 유지하세요. "예산_참고" 필드가 없는 후보는 이
+   문장을 아예 쓰지 마세요."""
 
 
 def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
@@ -126,6 +134,11 @@ def _build_candidate_payload(candidates: list[AnalyzeResponse]) -> list[dict]:
                 }
                 for a in c.alternatives
             ]
+        if c.budget_fit:
+            entry["예산_참고"] = {
+                "월세_예산_만원": round(c.budget_fit.monthly_budget_krw / 10_000),
+                "판단": c.budget_fit.label,
+            }
         payload.append(entry)
     return payload
 

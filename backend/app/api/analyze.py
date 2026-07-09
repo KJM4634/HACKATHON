@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.alternatives import LOW_SCORE_THRESHOLD, find_alternatives
+from app.budget import estimate_budget_fit
 from app.data_provider import get_data_provider
 from app.data_provider.base import DataProvider
 from app.data_provider.local.category_mapping import ALL_CATEGORIES
@@ -33,7 +34,10 @@ _KNOWN_CATEGORIES = ALL_CATEGORIES
 # 다른 쪽에 잘못 재사용될 수 있다.
 # is_fallback=True인 결과는 캐시하지 않는다 — 그렇게 하면 일시적 Gemini 장애로 받은
 # 기본 템플릿이 장애가 풀린 뒤에도 영영 굳어버린다.
-_report_cache: dict[tuple[tuple[str, ...], str, bool], ReportResponse] = {}
+# monthly_budget_krw도 키에 넣는 이유: 이 값이 있으면 Gemini 프롬프트에 예산 참고
+# 문장이 추가로 들어가 리포트 텍스트 자체가 달라지므로, 빼면 다른 예산으로 물어봐도
+# 이전 예산 기준 캐시된 문장이 잘못 재사용된다.
+_report_cache: dict[tuple[tuple[str, ...], str, bool, int | None], ReportResponse] = {}
 
 
 def _all_scores_for_category(provider: DataProvider, category: str) -> dict[str, ScoreResult]:
@@ -45,18 +49,24 @@ def _all_scores_for_category(provider: DataProvider, category: str) -> dict[str,
     }
 
 
-def _analyze_one(provider: DataProvider, region_id: str, category: str) -> AnalyzeResponse:
+def _analyze_one(
+    provider: DataProvider, region_id: str, category: str, monthly_budget_krw: int | None = None
+) -> AnalyzeResponse:
     try:
         market_data = provider.get_market_data(region_id, category)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
     score = compute_score(market_data, category)
+    budget_fit = (
+        estimate_budget_fit(monthly_budget_krw, score.breakdown.수익성) if monthly_budget_krw is not None else None
+    )
     return AnalyzeResponse(
         region=market_data.region,
         category=category,
         score=score,
         market_data=market_data,
+        budget_fit=budget_fit,
     )
 
 
@@ -104,15 +114,18 @@ def report(req: ReportRequest) -> ReportResponse:
     하고 싶다"는 사용자를 위한 차별화 전략 제안(differentiation_strategy)도
     같이 생성한다 — 실패해도 대체 문구 없이 그냥 None으로 둔다.
 
-    같은 (지역 조합, 업종, include_alternatives)로 이미 성공한 리포트가 있으면
-    Gemini를 다시 부르지 않고 그 결과를 그대로 돌려준다(무료 티어 쿼터 절약)."""
-    cache_key = (tuple(sorted(req.region_ids)), req.category, req.include_alternatives)
+    같은 (지역 조합, 업종, include_alternatives, monthly_budget_krw)로 이미 성공한
+    리포트가 있으면 Gemini를 다시 부르지 않고 그 결과를 그대로 돌려준다(무료 티어
+    쿼터 절약)."""
+    cache_key = (tuple(sorted(req.region_ids)), req.category, req.include_alternatives, req.monthly_budget_krw)
     cached = _report_cache.get(cache_key)
     if cached is not None:
         return cached
 
     provider: DataProvider = get_data_provider()
-    candidates = [_analyze_one(provider, region_id, req.category) for region_id in req.region_ids]
+    candidates = [
+        _analyze_one(provider, region_id, req.category, req.monthly_budget_krw) for region_id in req.region_ids
+    ]
 
     if req.include_alternatives:
         all_scores: dict[str, ScoreResult] | None = None
@@ -126,6 +139,9 @@ def report(req: ReportRequest) -> ReportResponse:
             candidate.alternatives = find_alternatives(
                 candidate.region, candidate.score.total_score, all_scores, region_by_id
             )
+            if req.monthly_budget_krw is not None:
+                for alt in candidate.alternatives:
+                    alt.budget_fit = estimate_budget_fit(req.monthly_budget_krw, alt.breakdown.수익성)
             candidate.differentiation_strategy = generate_differentiation_strategy(candidate)
 
     report_text, is_fallback = generate_report(req.category, candidates)
