@@ -8,10 +8,23 @@ from app.schemas import GridCellReportRequest, GridCellReportResponse
 
 router = APIRouter(prefix="/api/grid", tags=["grid"])
 
+# app/api/grid.py의 _cell_report_cache와 같은 이유로 캐싱한다 — 이 엔드포인트는
+# Gemini를 두 번(격자 해설 + 리뷰 요약) 부르고 네이버 API도 호출하므로, 같은 셀을
+# 다시 누를 때마다 매번 다시 부르면 무료 티어/일일 한도를 더 빨리 쓴다.
+# is_fallback=True는 캐시하지 않는다(일시적 장애가 풀린 뒤에도 기본 문장이
+# 영영 굳어버리는 걸 막기 위함 — 기존 캐시들과 같은 규칙).
+_review_report_cache: dict[tuple[str, str, str], GridCellReportResponse] = {}
+
+
 @router.post("/report", response_model=GridCellReportResponse)
 def get_grid_cell_report(req: GridCellReportRequest):
+    cache_key = (req.region_id, req.category, req.cell_id)
+    cached = _review_report_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     provider = get_data_provider()
-    
+
     # 1. 지역 정보 조회
     region_info = next((r for r in provider.list_regions() if r.region_id == req.region_id), None)
     if not region_info:
@@ -53,7 +66,7 @@ def get_grid_cell_report(req: GridCellReportRequest):
     if review_summary:
         final_text += f"\n\n{review_summary}"
 
-    return GridCellReportResponse(
-        report_text=final_text,
-        is_fallback=is_fallback
-    )
+    result = GridCellReportResponse(report_text=final_text, is_fallback=is_fallback)
+    if not is_fallback:
+        _review_report_cache[cache_key] = result
+    return result

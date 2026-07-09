@@ -93,3 +93,18 @@ export function fetchGridCellReport(regionId, category, cellId) {
     "격자 AI 해설 생성 실패"
   )
 }
+
+// 격자 AI 해설 + 네이버 블로그 리뷰 요약을 합쳐서 주는 별도 엔드포인트(app/api/grid_report.py).
+// "AI 해설 보기"와 별개 버튼("이 지역 리뷰 요약 보기")에서만 호출한다 — 네이버 API도
+// Gemini처럼 무료 티어/한도가 있어 자동 호출하면 금방 소진된다.
+export function fetchGridCellReviewSummary(regionId, category, cellId) {
+  return request(
+    `${API_BASE}/api/grid/report`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ region_id: regionId, category, cell_id: cellId }),
+    },
+    "리뷰 요약 생성 실패"
+  )
+}

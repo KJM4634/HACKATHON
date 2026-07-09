@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { fetchGridCellReport } from "../api"
+import { fetchGridCellReport, fetchGridCellReviewSummary } from "../api"
 import { scoreToColor } from "../colorScale"
 import { useCountUp } from "../useCountUp"
+import { useDelayedFlag } from "../useDelayedFlag"
 import "./RegionDetailModal.css"
 
 const BREAKDOWN_LABELS = [
@@ -9,6 +10,19 @@ const BREAKDOWN_LABELS = [
   { key: "경쟁강도", label: "경쟁강도" },
   { key: "수익성", label: "수익성" },
 ]
+
+// /api/grid/report는 격자 AI 해설 + 리뷰 요약을 한 텍스트로 이어붙여서 준다
+// (app/api/grid_report.py 참고). "AI 해설"은 이미 다른 버튼으로 보여주고 있으니,
+// 여기서는 review_analyzer.py의 프롬프트가 항상 붙이는 고정 헤더("📌 [방문자
+// 생생 리뷰 분석...")를 기준으로 리뷰 부분만 잘라서 보여준다. 헤더가 없으면
+// 네이버 쪽에서 데이터를 못 찾았거나 실패한 것 — 그대로 보여주면 "AI 해설"
+// 섹션과 똑같은 문장이 중복으로 보여서 혼란스럽다.
+const REVIEW_MARKER = "📌"
+
+function extractReviewSection(text) {
+  const idx = text.indexOf(REVIEW_MARKER)
+  return idx === -1 ? null : text.slice(idx).trim()
+}
 
 // 행정동 상세(RegionDetailModal)와 같은 자리(사이드 패널)에 끼워지는, 격자 셀
 // 전용 패널. Track A는 일부러 안 넣는다(행정동 단위로 학습된 모델이라 격자에는
@@ -50,11 +64,18 @@ function GridCellDetailPanel({ cellDetail, regionId, category, onBack, onClose, 
 
 function GridCellDetailContent({ detail, regionId, category, onBack, onAlternativeClick }) {
   const [report, setReport] = useState({ status: "idle" })
+  const [reviewSummary, setReviewSummary] = useState({ status: "idle" })
   const animatedScore = useCountUp(detail.total_score)
+  // 네이버 API까지 순서대로 부르는 조합 호출이라 Gemini 단독보다 느릴 수 있다 —
+  // 5초 넘게 걸리면 "멈춘 게 아니다"라는 안내로 바꿔준다(AnalysisPanel/RegionDetailModal과
+  // 같은 패턴, useDelayedFlag.js 참고).
+  const isReviewSlow = useDelayedFlag(reviewSummary.status === "loading", 5000)
 
-  // 다른 셀을 열면(대안 카드 클릭 등) 이전 셀의 AI 해설이 그대로 보이면 안 되니 초기화
+  // 다른 셀을 열면(대안 카드 클릭 등) 이전 셀의 AI 해설/리뷰 요약이 그대로 보이면
+  // 안 되니 초기화
   useEffect(() => {
     setReport({ status: "idle" })
+    setReviewSummary({ status: "idle" })
   }, [detail.cell_id])
 
   async function handleShowReport() {
@@ -64,6 +85,16 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
       setReport({ status: "success", reportText: result.report_text, isFallback: result.is_fallback })
     } catch (err) {
       setReport({ status: "error", error: err.message })
+    }
+  }
+
+  async function handleShowReviewSummary() {
+    setReviewSummary({ status: "loading" })
+    try {
+      const result = await fetchGridCellReviewSummary(regionId, category, detail.cell_id)
+      setReviewSummary({ status: "success", reviewText: extractReviewSection(result.report_text) })
+    } catch (err) {
+      setReviewSummary({ status: "error", error: err.message })
     }
   }
 
@@ -167,6 +198,33 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
           <p className="report-text">{report.reportText}</p>
         </>
       )}
+
+      <h3 className="modal-subheading">이 지역 리뷰 요약</h3>
+      {reviewSummary.status === "idle" && (
+        <button className="grid-ai-report-button" onClick={handleShowReviewSummary}>
+          이 지역 리뷰 요약 보기
+        </button>
+      )}
+      {reviewSummary.status === "loading" && (
+        <div className="panel-loading">
+          <span className="spinner" aria-hidden="true" />
+          {isReviewSlow
+            ? "네이버 리뷰 검색 + AI 분석에 시간이 조금 더 걸리고 있어요. 잠시만 기다려주세요…"
+            : "리뷰 요약 생성 중입니다…"}
+        </div>
+      )}
+      {reviewSummary.status === "error" && (
+        <div className="panel-error">
+          <strong>리뷰 요약을 불러오지 못했습니다.</strong>
+          <p>{reviewSummary.error}</p>
+        </div>
+      )}
+      {reviewSummary.status === "success" &&
+        (reviewSummary.reviewText ? (
+          <p className="report-text">{reviewSummary.reviewText}</p>
+        ) : (
+          <p className="report-fallback-notice">이 지역은 참고할 만한 블로그 리뷰를 찾지 못했습니다.</p>
+        ))}
     </>
   )
 }
