@@ -173,31 +173,70 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
       .bindTooltip(`${origin.행정동명} (선택 지역)`, { direction: "top" })
       .addTo(layer)
 
-    alternatives.forEach((alt) => {
+    // 대안마다 선이 "자라나는" 느낌을 주는 트릭: stroke-dasharray를 선 전체 길이로
+    // 잡고 dashoffset을 그 길이만큼 밀어둔 상태(안 보임)에서 0으로 옮기면 선이
+    // 시작점에서 끝점까지 그려지는 것처럼 보인다. 애니메이션이 끝나면 인라인
+    // 스타일을 지우고 className을 "connection-line"으로 바꿔서, 원래 있던
+    // 잔잔하게 흘러가는 점선 애니메이션(connection-flow)이 이어받게 한다 —
+    // 두 애니메이션이 같은 stroke-dashoffset을 동시에 건드리면 서로 충돌하므로
+    // 성장 중에는 흐르는 애니메이션이 없는 별도 클래스를 쓴다.
+    const GROW_MS = 420
+    const timers = []
+    alternatives.forEach((alt, i) => {
       const latlng = [alt.region.위도, alt.region.경도]
       points.push(latlng)
 
-      L.polyline([[origin.위도, origin.경도], latlng], {
+      const line = L.polyline([[origin.위도, origin.경도], latlng], {
         color: ALTERNATIVE_COLOR,
         weight: 2,
         opacity: 0.8,
-        className: "connection-line",
+        className: "connection-line-growing",
       }).addTo(layer)
 
-      L.circleMarker(latlng, {
+      const marker = L.circleMarker(latlng, {
         radius: 8,
         color: "#fff",
         weight: 2,
         fillColor: ALTERNATIVE_COLOR,
-        fillOpacity: 1,
+        fillOpacity: 0,
+        opacity: 0,
         className: "connection-marker connection-marker-alt",
       })
         .bindTooltip(`${alt.region.행정동명}: ${alt.score}점 · ${alt.distance_km}km`, { direction: "top" })
         .on("click", () => onRegionClickRef.current?.(alt.region.region_id, alt.region.행정동명))
         .addTo(layer)
+
+      const startDelay = i * 60 // 대안이 여러 개면 살짝 시차를 둬서 한꺼번에 딱 나타나지 않게
+      timers.push(
+        window.setTimeout(() => {
+          const pathEl = line.getElement()
+          if (pathEl) {
+            const length = pathEl.getTotalLength()
+            pathEl.style.strokeDasharray = `${length}`
+            pathEl.style.strokeDashoffset = `${length}`
+            pathEl.getBoundingClientRect() // 강제 리플로우: 위 "시작 상태"를 브라우저가 실제로 반영하게 함
+            pathEl.style.transition = `stroke-dashoffset ${GROW_MS}ms ease-out`
+            pathEl.style.strokeDashoffset = "0"
+          }
+
+          timers.push(
+            window.setTimeout(() => {
+              if (pathEl) {
+                pathEl.style.transition = ""
+                pathEl.style.strokeDasharray = ""
+                pathEl.style.strokeDashoffset = ""
+              }
+              line.getElement()?.classList.replace("connection-line-growing", "connection-line")
+              marker.setStyle({ fillOpacity: 1, opacity: 1 })
+            }, GROW_MS)
+          )
+        }, startDelay)
+      )
     })
 
-    map.fitBounds(L.latLngBounds(points), { padding: [56, 56], maxZoom: 15 })
+    map.flyToBounds(L.latLngBounds(points), { padding: [56, 56], maxZoom: 15, duration: 0.5 })
+
+    return () => timers.forEach((id) => window.clearTimeout(id))
   }, [connections])
 
   // 행정동 상세를 열면 그 동만 격자로 잘라 확대해서 보여준다("격자 확대 모드").
@@ -218,25 +257,42 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
 
     geoLayer?.setStyle({ fillOpacity: 0.08 })
 
+    // 셀이 몇 개든(우1동처럼 100개 넘어도) 전체 등장 시간이 SPREAD_MS를 넘지 않도록
+    // 셀당 지연을 셀 수에 반비례하게 잡는다 — 그래야 "순차 등장"이 곧 "느려짐"이 되지 않는다.
+    const SPREAD_MS = 280
+    const cellCount = gridOverlay.cells.length
+    const perCellDelay = cellCount > 1 ? SPREAD_MS / cellCount : 0
+
     const bounds = []
-    gridOverlay.cells.forEach((cell) => {
+    const timers = []
+    gridOverlay.cells.forEach((cell, i) => {
       const { north, south, east, west } = cell.bounds
-      L.rectangle([[south, west], [north, east]], {
+      const rect = L.rectangle([[south, west], [north, east]], {
         color: "#fff",
         weight: 1,
         fillColor: scoreToColor(cell.total_score),
-        fillOpacity: 0.75,
+        fillOpacity: 0,
+        opacity: 0,
         className: "grid-cell-rect",
       })
         .bindTooltip(`${cell.total_score}점`, { sticky: true })
         .on("click", () => onGridCellClickRef.current?.(cell.cell_id))
         .addTo(layer)
+
+      timers.push(
+        window.setTimeout(() => {
+          rect.setStyle({ fillOpacity: 0.75, opacity: 1 })
+        }, i * perCellDelay)
+      )
+
       bounds.push([south, west], [north, east])
     })
 
     if (bounds.length > 0) {
-      map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 18 })
+      map.flyToBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 18, duration: 0.5 })
     }
+
+    return () => timers.forEach((id) => window.clearTimeout(id))
   }, [gridOverlay])
 
   return (

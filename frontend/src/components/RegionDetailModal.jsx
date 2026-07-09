@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { scoreToColor } from "../colorScale"
+import { useCountUp } from "../useCountUp"
 import "./RegionDetailModal.css"
 
 const BREAKDOWN_LABELS = [
@@ -54,6 +55,7 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
   const { score, region, alternatives } = candidate
   const trackA = score.track_a
   const [lowScoreTab, setLowScoreTab] = useState("alternatives")
+  const animatedScore = useCountUp(score.total_score)
 
   return (
     <>
@@ -61,7 +63,7 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
 
       <div className="gauge-row">
         <div className="gauge" style={{ "--gauge-color": scoreToColor(score.total_score) }}>
-          <span className="gauge-value">{score.total_score}</span>
+          <span className="gauge-value">{animatedScore}</span>
           <span className="gauge-max">/100</span>
         </div>
         <p className="gauge-caption">종합 생존 가능성 점수</p>

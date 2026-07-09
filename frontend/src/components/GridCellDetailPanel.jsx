@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { fetchGridCellReport } from "../api"
 import { scoreToColor } from "../colorScale"
+import { useCountUp } from "../useCountUp"
 import "./RegionDetailModal.css"
 
 const BREAKDOWN_LABELS = [
@@ -49,6 +50,7 @@ function GridCellDetailPanel({ cellDetail, regionId, category, onBack, onClose, 
 
 function GridCellDetailContent({ detail, regionId, category, onBack, onAlternativeClick }) {
   const [report, setReport] = useState({ status: "idle" })
+  const animatedScore = useCountUp(detail.total_score)
 
   // 다른 셀을 열면(대안 카드 클릭 등) 이전 셀의 AI 해설이 그대로 보이면 안 되니 초기화
   useEffect(() => {
@@ -76,7 +78,7 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
 
       <div className="gauge-row">
         <div className="gauge" style={{ "--gauge-color": scoreToColor(detail.total_score) }}>
-          <span className="gauge-value">{detail.total_score}</span>
+          <span className="gauge-value">{animatedScore}</span>
           <span className="gauge-max">/100</span>
         </div>
         <p className="gauge-caption">행정동 내 상대 점수</p>

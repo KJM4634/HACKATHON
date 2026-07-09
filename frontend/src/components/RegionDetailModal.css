@@ -200,6 +200,7 @@
 .breakdown-fill {
   height: 100%;
   border-radius: 4px;
+  transition: width 0.5s ease-out;
 }
 
 /* 대안 추천 / 이곳에서 성공하려면 — 점수가 낮을 때만 뜨는 두 관점을 탭으로
