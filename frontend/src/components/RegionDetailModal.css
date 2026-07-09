@@ -84,6 +84,31 @@
   margin-top: 16px;
 }
 
+.grid-ai-report-button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: var(--surface-1);
+  color: var(--accent);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+.grid-ai-report-button:hover {
+  background: var(--accent-bg);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.grid-ai-report-button:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: var(--shadow-sm);
+}
+
 .modal-title {
   font-size: 21px;
   font-weight: 800;

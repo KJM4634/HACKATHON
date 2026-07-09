@@ -300,6 +300,8 @@ function App() {
           {gridCell.open ? (
             <GridCellDetailPanel
               cellDetail={gridCell}
+              regionId={gridOverlay?.regionId}
+              category={gridOverlay?.category}
               onBack={() => setGridCell({ open: false })}
               onClose={exitGridMode}
               onAlternativeClick={(cellId) => openGridCell(cellId)}

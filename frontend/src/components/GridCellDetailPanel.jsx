@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react"
+import { fetchGridCellReport } from "../api"
 import { scoreToColor } from "../colorScale"
 import "./RegionDetailModal.css"
 
@@ -8,10 +10,11 @@ const BREAKDOWN_LABELS = [
 ]
 
 // 행정동 상세(RegionDetailModal)와 같은 자리(사이드 패널)에 끼워지는, 격자 셀
-// 전용 패널. AI 해설과 Track A는 일부러 안 넣는다 — Track A는 행정동 단위로
-// 학습된 모델이라 격자에는 안 맞고(설계 확정 시 합의), AI 해설은 셀 클릭마다
-// Gemini를 부르면 무료 티어 쿼터를 너무 빨리 쓰게 되어 숫자 기반 정보만 보여준다.
-function GridCellDetailPanel({ cellDetail, onBack, onClose, onAlternativeClick }) {
+// 전용 패널. Track A는 일부러 안 넣는다(행정동 단위로 학습된 모델이라 격자에는
+// 안 맞음, 설계 확정 시 합의). AI 해설은 게이지/바차트처럼 자동으로는 안 만들고
+// "AI 해설 보기"를 눌렀을 때만 요청한다 — 격자가 행정동 하나에 최대 100개
+// 안팎이라 자동 호출이면 Gemini 무료 티어 일일 한도를 금방 써버린다.
+function GridCellDetailPanel({ cellDetail, regionId, category, onBack, onClose, onAlternativeClick }) {
   return (
     <div className="region-detail-panel">
       <button className="modal-close" onClick={onClose} aria-label="닫기">
@@ -32,13 +35,36 @@ function GridCellDetailPanel({ cellDetail, onBack, onClose, onAlternativeClick }
       )}
 
       {cellDetail.status === "success" && (
-        <GridCellDetailContent detail={cellDetail.detail} onBack={onBack} onAlternativeClick={onAlternativeClick} />
+        <GridCellDetailContent
+          detail={cellDetail.detail}
+          regionId={regionId}
+          category={category}
+          onBack={onBack}
+          onAlternativeClick={onAlternativeClick}
+        />
       )}
     </div>
   )
 }
 
-function GridCellDetailContent({ detail, onBack, onAlternativeClick }) {
+function GridCellDetailContent({ detail, regionId, category, onBack, onAlternativeClick }) {
+  const [report, setReport] = useState({ status: "idle" })
+
+  // 다른 셀을 열면(대안 카드 클릭 등) 이전 셀의 AI 해설이 그대로 보이면 안 되니 초기화
+  useEffect(() => {
+    setReport({ status: "idle" })
+  }, [detail.cell_id])
+
+  async function handleShowReport() {
+    setReport({ status: "loading" })
+    try {
+      const result = await fetchGridCellReport(regionId, category, detail.cell_id)
+      setReport({ status: "success", reportText: result.report_text, isFallback: result.is_fallback })
+    } catch (err) {
+      setReport({ status: "error", error: err.message })
+    }
+  }
+
   return (
     <>
       <button className="grid-back-button" onClick={onBack}>
@@ -117,6 +143,32 @@ function GridCellDetailContent({ detail, onBack, onAlternativeClick }) {
             </ul>
           </div>
         </div>
+      )}
+
+      <h3 className="modal-subheading">AI 해설</h3>
+      {report.status === "idle" && (
+        <button className="grid-ai-report-button" onClick={handleShowReport}>
+          AI 해설 보기
+        </button>
+      )}
+      {report.status === "loading" && (
+        <div className="panel-loading">
+          <span className="spinner" aria-hidden="true" />해설 생성 중입니다…
+        </div>
+      )}
+      {report.status === "error" && (
+        <div className="panel-error">
+          <strong>AI 해설을 불러오지 못했습니다.</strong>
+          <p>{report.error}</p>
+        </div>
+      )}
+      {report.status === "success" && (
+        <>
+          {report.isFallback && (
+            <p className="report-fallback-notice">AI 리포트 생성에 실패해 점수 기반 기본 요약을 표시합니다.</p>
+          )}
+          <p className="report-text">{report.reportText}</p>
+        </>
       )}
     </>
   )

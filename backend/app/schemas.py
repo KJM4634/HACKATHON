@@ -279,9 +279,11 @@ class GridCellDetailRequest(BaseModel):
 
 class GridCellDetailResponse(BaseModel):
     """격자 셀 상세 패널용. Track A는 행정동 단위로 학습된 모델이라 격자에는
-    적용하지 않고(available=False 고정), AI 해설(Gemini 리포트)도 클릭마다 호출하면
-    무료 티어 쿼터를 빠르게 소모하니 이번 버전에서는 만들지 않는다 — 숫자 기반
-    게이지/막대바/대안만 보여준다."""
+    적용하지 않는다(available=False 고정). AI 해설(Gemini 리포트)은 셀 클릭 시
+    자동으로 만들지 않고 — 격자가 행정동 하나에 최대 100개 안팎이라 자동 호출이면
+    무료 티어 일일 한도를 금방 씀 — 이 응답에는 숫자 기반 게이지/막대바/대안만
+    담는다. AI 해설은 사용자가 "AI 해설 보기"를 눌렀을 때만 GridCellReportRequest로
+    별도 요청한다(app/llm/grid_report.py)."""
 
     cell_id: str
     label: str = Field(..., description="예: '부산진구 부전2동 (격자 B-4)'")
@@ -295,3 +297,17 @@ class GridCellDetailResponse(BaseModel):
     alternatives: list[AlternativeRegion] = Field(
         default_factory=list, description="같은 행정동 내에서 점수가 더 높은 다른 격자 (최대 3곳)"
     )
+
+
+class GridCellReportRequest(BaseModel):
+    region_id: str
+    category: str
+    cell_id: str
+
+
+class GridCellReportResponse(BaseModel):
+    """"AI 해설 보기"를 눌렀을 때만 요청하는 격자 셀 해설. (region_id, category,
+    cell_id) 키로 캐싱되어 같은 셀을 다시 눌러도 Gemini를 재호출하지 않는다."""
+
+    report_text: str
+    is_fallback: bool = Field(..., description="True면 LLM 호출 실패로 점수 기반 기본 문장으로 대체")
