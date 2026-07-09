@@ -26,6 +26,7 @@
 
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import pandas as pd
 
@@ -55,6 +56,7 @@ from app.schemas import (
     GridCellDetailResponse,
     GridCellSummary,
     GridResponse,
+    PropertyListing,
     RegionInfo,
     ScoreBreakdown,
     ScoreResult,
@@ -88,6 +90,26 @@ def _normalize_local(value: float, values: list[float]) -> int:
     return round(max(0.0, min(1.0, ratio)) * 100)
 
 
+def _to_property_listings(raw_listings: list[dict]) -> list[PropertyListing]:
+    """cell.listings(원본 CSV row를 그대로 to_dict한 딕셔너리)를 PropertyListing으로
+    변환하는 공용 헬퍼. GridResponse(격자 목록, 지도 마커용)와 GridCellDetailResponse
+    (셀 상세, 사이드패널 리스트용) 양쪽에서 같은 규칙으로 써야 좌표/필드가 어긋나지
+    않아서 여기 하나로 모아뒀다."""
+    return [
+        PropertyListing(
+            name=str(item.get("매물명", "이름없음")),
+            floor=str(item.get("층수", "층수모름")),
+            deposit=int(item.get("보증금", 0)),
+            rent=int(item.get("월세", 0)),
+            area_m2=float(item.get("면적_m2", 0.0)),
+            rent_per_pyeong=int(item.get("평당월세", 0)),
+            lat=float(item.get("lat", 0.0)),
+            lng=float(item.get("lng", 0.0)),
+        )
+        for item in raw_listings
+    ]
+
+
 @dataclass
 class _Cell:
     row: int
@@ -104,6 +126,10 @@ class _Cell:
     breakdown: ScoreBreakdown | None = None
     total_score: int = 0
     data_limitations: list[str] = field(default_factory=list)
+    rent_count: int = 0
+    avg_rent_per_pyeong: int = 0
+    avg_deposit: int = 0
+    listings: list[dict] = field(default_factory=list)  # 매물 원본 딕셔너리 바구니
 
     @property
     def cell_id(self) -> str:
@@ -126,10 +152,8 @@ def _generate_cells(feature: dict, cell_size_m: int) -> list[_Cell]:
     m_per_deg_lon = 111_320 * math.cos(math.radians(lat_mid))
     step_lon = cell_size_m / m_per_deg_lon
     step_lat = cell_size_m / m_per_deg_lat
-
     n_cols = max(1, math.ceil((max_lon - min_lon) / step_lon))
     n_rows = max(1, math.ceil((max_lat - min_lat) / step_lat))
-
     cells = []
     for row in range(n_rows):
         for col in range(n_cols):
@@ -177,7 +201,6 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
     feature = boundaries.get(region_id)
     if feature is None:
         raise ValueError(f"행정동 경계를 찾을 수 없음: {region_id}")
-
     area_m2 = polygon_area_m2(feature)
     cell_size_m = _choose_cell_size_m(area_m2)
     cells = _generate_cells(feature, cell_size_m)
@@ -191,7 +214,6 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
     dong_biz = sanggabu[sanggabu["행정동코드"] == code8]
     competitor_mask = _competitor_mask(dong_biz, category)
     competitor_biz = dong_biz[competitor_mask]
-
     for cell in cells:
         north, south, east, west = cell.bounds
         in_cell = (
@@ -202,7 +224,6 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
         )
         cell.poi_weight = float(in_cell.sum())
         cell.competitor_count = int((competitor_mask & in_cell).sum())
-
     total_poi = sum(c.poi_weight for c in cells) or 1.0  # 상가업소가 아예 없으면 균등 배분
 
     # ---- 폐업률 (있는 업종만) ----
@@ -211,12 +232,10 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
         dong_rest = restaurants[restaurants["행정동코드"] == code8].copy()
         mask = _restaurant_mask(dong_rest, category)
         dong_rest = dong_rest[mask] if mask is not None else dong_rest.iloc[0:0]
-
         cutoff = pd.Timestamp.now() - pd.Timedelta(days=_RECENT_CLOSURE_WINDOW_DAYS)
         폐업일자 = pd.to_datetime(dong_rest["폐업일자"], errors="coerce")
         active_mask = dong_rest["영업상태명"] == "영업/정상"
         closed_recent_mask = (dong_rest["영업상태명"] == "폐업") & (폐업일자 >= cutoff)
-
         for cell in cells:
             north, south, east, west = cell.bounds
             in_cell = (
@@ -235,13 +254,19 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
     # ---- 배후수요/수익성 원재료: 행정동 단위 값을 POI 밀도 비율로 배분 ----
     foot_traffic = get_foot_traffic_for_dong(region_id)
     dong_total_visits = sum(h.평균방문인구수 for h in foot_traffic)
-
     population = get_population_by_gu().get(시군구명)
     dong_population = population.총인구수 if population else 0
-
     consumption = get_consumption_by_category_for_dong(region_id)
     bucket = _CATEGORY_TO_REVENUE_BUCKET.get(category)
     dong_revenue = next((c.평균이용금액 for c in consumption if c.업종대분류 == bucket), 0) if bucket else 0
+
+    # ---- [NEW] 크롤링한 임대료 데이터 맵핑 (Spatial Join) ----
+    # 현재 파일(grid.py)의 위치를 기준으로 파일 경로를 확실하게 못 박아둠
+    base_dir = Path(__file__).resolve().parent.parent.parent
+    csv_path = base_dir / "seomyeon_rent_data.csv"
+    rent_df = pd.read_csv(csv_path) if csv_path.exists() else None
+    if rent_df is None:
+        print(f"⚠️ {csv_path} 파일을 찾을 수 없어 임대료 산출을 건너뜁니다.")
 
     visit_inputs, population_inputs, revenue_inputs = [], [], []
     for cell in cells:
@@ -250,10 +275,24 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
         population_inputs.append(dong_population * weight)
         revenue_inputs.append(dong_revenue * weight)
 
+        if rent_df is not None:
+            north, south, east, west = cell.bounds
+            # 격자의 4면 경계선 안에 들어오는 월세 매물만 필터링
+            in_cell = (
+                (rent_df["lng"] >= west) & (rent_df["lng"] < east) &
+                (rent_df["lat"] >= south) & (rent_df["lat"] < north)
+            )
+            cell_rents = rent_df[in_cell]
+            cell.rent_count = len(cell_rents)
+            if cell.rent_count > 0:
+                cell.avg_deposit = int(cell_rents["보증금"].mean())
+                cell.avg_rent_per_pyeong = int(cell_rents["평당월세"].mean())
+                cell.listings = cell_rents.to_dict(orient="records")
+    # --------------------------------------------------------
+
     # ---- 정규화(이 행정동 격자들끼리 상대비교) + 가중합 ----
     competitor_counts = [c.competitor_count for c in cells]
     closure_rates = [c.closure_rate for c in cells if c.closure_available]
-
     for i, cell in enumerate(cells):
         visit_score = _normalize_local(visit_inputs[i], visit_inputs)
         population_score = _normalize_local(population_inputs[i], population_inputs)
@@ -280,7 +319,6 @@ def compute_grid(region_id: str, category: str, 시군구명: str) -> tuple[list
             notes.append(f"'{category}' 업종은 매출 카테고리 매핑이 없어 수익성 점수를 50(중간값)으로 처리")
 
         total = round(demand * _WEIGHTS["배후수요"] + competition * _WEIGHTS["경쟁강도"] + profitability * _WEIGHTS["수익성"])
-
         cell.breakdown = ScoreBreakdown(배후수요=demand, 경쟁강도=competition, 접근성=None, 수익성=profitability)
         cell.total_score = total
         cell.data_limitations = notes
@@ -304,6 +342,10 @@ def to_grid_response(region_id: str, 행정동명: str, category: str, cells: li
                 ),
                 total_score=cell.total_score,
                 breakdown=cell.breakdown,
+                rent_count=cell.rent_count,
+                avg_rent_per_pyeong=cell.avg_rent_per_pyeong,
+                # 👇 [추가됨] 확대 시 지도에 마커로 찍기 위해 목록 응답에도 매물 좌표를 실어 보냄
+                listings=_to_property_listings(cell.listings),
             )
             for cell in cells
         ],
@@ -356,4 +398,8 @@ def to_cell_detail(region_id: str, 행정동명: str, cells: list, cell_id: str)
         closure_sample=target.closure_active + target.closure_closed_recent,
         data_limitations=target.data_limitations,
         alternatives=alternatives,
+        rent_count=target.rent_count,
+        avg_rent_per_pyeong=target.avg_rent_per_pyeong,
+        avg_deposit=target.avg_deposit,
+        listings=_to_property_listings(target.listings),
     )

@@ -245,22 +245,39 @@ class QueryParseResponse(BaseModel):
 
 class GridCellBounds(BaseModel):
     """지도에 사각형(L.rectangle)을 그리기 위한 경계."""
-
     north: float
     south: float
     east: float
     west: float
 
+class PropertyListing(BaseModel):
+    """개별 매물 상세 정보"""
+    name: str = Field(..., description="매물명 (예: 일반상가)")
+    floor: str = Field(..., description="층수")
+    deposit: int = Field(..., description="보증금 (만 원)")
+    rent: int = Field(..., description="월세 (만 원)")
+    area_m2: float = Field(..., description="면적 (㎡)")
+    rent_per_pyeong: int = Field(..., description="평당 월세 (만 원)")
+    lat: float = Field(..., description="위도")
+    lng: float = Field(..., description="경도")
 
 class GridCellSummary(BaseModel):
     """격자 지도 색칠용 — 셀 하나당 가벼운 점수 정보만 (app/grid.py 참고)."""
-
     cell_id: str
     center_위도: float
     center_경도: float
     bounds: GridCellBounds
     total_score: int
     breakdown: ScoreBreakdown
+    # 👇 [수정] '= 0'을 지워서 필수 전송 항목으로 만듦!
+    rent_count: int
+    avg_rent_per_pyeong: int
+    listings: list[PropertyListing] = Field(
+        default_factory=list, description="해당 격자 내 실제 매물 리스트 (지도 마커용)"
+    )
+
+
+
 
 
 class GridResponse(BaseModel):
@@ -277,14 +294,11 @@ class GridCellDetailRequest(BaseModel):
     cell_id: str
 
 
-class GridCellDetailResponse(BaseModel):
-    """격자 셀 상세 패널용. Track A는 행정동 단위로 학습된 모델이라 격자에는
-    적용하지 않는다(available=False 고정). AI 해설(Gemini 리포트)은 셀 클릭 시
-    자동으로 만들지 않고 — 격자가 행정동 하나에 최대 100개 안팎이라 자동 호출이면
-    무료 티어 일일 한도를 금방 씀 — 이 응답에는 숫자 기반 게이지/막대바/대안만
-    담는다. AI 해설은 사용자가 "AI 해설 보기"를 눌렀을 때만 GridCellReportRequest로
-    별도 요청한다(app/llm/grid_report.py)."""
+# (기존 코드들 유지)
 
+
+class GridCellDetailResponse(BaseModel):
+    """격자 셀 상세 패널용."""
     cell_id: str
     label: str = Field(..., description="예: '부산진구 부전2동 (격자 B-4)'")
     total_score: int
@@ -297,6 +311,11 @@ class GridCellDetailResponse(BaseModel):
     alternatives: list[AlternativeRegion] = Field(
         default_factory=list, description="같은 행정동 내에서 점수가 더 높은 다른 격자 (최대 3곳)"
     )
+    rent_count: int
+    avg_rent_per_pyeong: int
+    avg_deposit: int
+    # 👇 [추가됨] 이 격자 안에 있는 실제 매물들의 리스트!
+    listings: list[PropertyListing] = Field(default_factory=list, description="해당 격자 내 실제 매물 리스트")
 
 
 class GridCellReportRequest(BaseModel):
@@ -311,3 +330,5 @@ class GridCellReportResponse(BaseModel):
 
     report_text: str
     is_fallback: bool = Field(..., description="True면 LLM 호출 실패로 점수 기반 기본 문장으로 대체")
+
+

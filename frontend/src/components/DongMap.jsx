@@ -34,12 +34,46 @@ function stripSido(name) {
   return name.replace(/^부산광역시\s*/, "")
 }
 
+// 같은 건물(같은 좌표)에 매물이 여러 개 걸리는 경우가 흔해서(층별로 다른 매물),
+// 좌표 하나당 마커 하나로 묶고 배지에 개수를 보여준다. 소수점 6자리(약 11cm
+// 오차)면 "같은 건물"로 보기에 충분히 촘촘하다.
+function groupListingsByCoordinate(listings) {
+  const groups = new Map()
+  listings.forEach((item) => {
+    const key = `${item.lat.toFixed(6)},${item.lng.toFixed(6)}`
+    if (!groups.has(key)) groups.set(key, { lat: item.lat, lng: item.lng, items: [] })
+    groups.get(key).items.push(item)
+  })
+  return [...groups.values()]
+}
+
+function listingPopupHtml(items) {
+  const rows = items
+    .map(
+      (item) => `
+        <li class="listing-popup-row">
+          <div class="listing-popup-row-top">
+            <span class="listing-popup-name">${item.name}</span>
+            <span class="listing-popup-floor">${item.floor}층</span>
+          </div>
+          <div class="listing-popup-row-bottom">
+            <span>${item.deposit.toLocaleString()}/${item.rent.toLocaleString()}</span>
+            <span>${item.area_m2 > 0 ? `${item.area_m2}m²` : "면적 미상"}</span>
+            ${item.rent_per_pyeong > 0 ? `<span>평당 ${item.rent_per_pyeong}만</span>` : ""}
+          </div>
+        </li>`
+    )
+    .join("")
+  return `<div class="listing-popup"><div class="listing-popup-title">매물 ${items.length}건</div><ul class="listing-popup-list">${rows}</ul></div>`
+}
+
 function DongMap({ category, onRegionClick, highlightRegionIds, connections, gridOverlay, onGridCellClick }) {
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
   const geoLayerRef = useRef(null)
   const connectionsLayerRef = useRef(null)
   const gridLayerRef = useRef(null)
+  const markerLayerRef = useRef(null)
   const scoresRef = useRef({})
   const highlightRef = useRef(new Set())
   const onRegionClickRef = useRef(onRegionClick)
@@ -54,16 +88,17 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
   // 지도 + GeoJSON 레이어는 한 번만 만든다
   useEffect(() => {
     let cancelled = false // StrictMode의 effect 이중 실행 시 이미 해제된 지도에 접근하는 것 방지
-
     const map = L.map(mapElRef.current, {
       center: BUSAN_CENTER,
       zoom: 11,
       minZoom: 10,
-      maxZoom: 16,
+      maxZoom: 19,
     })
     mapRef.current = map
     connectionsLayerRef.current = L.layerGroup().addTo(map)
     gridLayerRef.current = L.layerGroup().addTo(map)
+    // 🚨 마커 레이어를 미리 지도에 붙여둡니다. (클릭 시 마커만 동적으로 추가/삭제)
+    markerLayerRef.current = L.layerGroup().addTo(map)
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
@@ -105,6 +140,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
       geoLayerRef.current = null
       connectionsLayerRef.current = null
       gridLayerRef.current = null
+      markerLayerRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -114,7 +150,6 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
     let cancelled = false
     setLoading(true)
     setError(null)
-
     fetchBulkScores(category)
       .then((data) => {
         if (cancelled) return
@@ -131,7 +166,6 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
         setError(`점수 조회 실패: ${err.message}`)
         setLoading(false)
       })
-
     return () => {
       cancelled = true
     }
@@ -155,13 +189,10 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
     const map = mapRef.current
     const layer = connectionsLayerRef.current
     if (!map || !layer) return
-
     layer.clearLayers()
     if (!connections) return
-
     const { origin, alternatives } = connections
     const points = [[origin.위도, origin.경도]]
-
     L.circleMarker([origin.위도, origin.경도], {
       radius: 9,
       color: "#fff",
@@ -172,18 +203,15 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
     })
       .bindTooltip(`${origin.행정동명} (선택 지역)`, { direction: "top" })
       .addTo(layer)
-
     alternatives.forEach((alt) => {
       const latlng = [alt.region.위도, alt.region.경도]
       points.push(latlng)
-
       L.polyline([[origin.위도, origin.경도], latlng], {
         color: ALTERNATIVE_COLOR,
         weight: 2,
         opacity: 0.8,
         className: "connection-line",
       }).addTo(layer)
-
       L.circleMarker(latlng, {
         radius: 8,
         color: "#fff",
@@ -196,53 +224,79 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
         .on("click", () => onRegionClickRef.current?.(alt.region.region_id, alt.region.행정동명))
         .addTo(layer)
     })
-
     map.fitBounds(L.latLngBounds(points), { padding: [56, 56], maxZoom: 15 })
   }, [connections])
 
   // 행정동 상세를 열면 그 동만 격자로 잘라 확대해서 보여준다("격자 확대 모드").
   // 나머지 205개 행정동은 흐리게(fillOpacity만 낮춤 — 개별 fillColor는 안 건드림)
-  // 남겨서 지금 보는 동이 부산 어디쯔인지 맥락은 유지한다.
+  // 남겨서 지금 보는 동이 부산 어디쯤인지 맥락은 유지한다.
   useEffect(() => {
     const map = mapRef.current
-    const layer = gridLayerRef.current
+    const gridLayer = gridLayerRef.current
+    const markerLayer = markerLayerRef.current
     const geoLayer = geoLayerRef.current
-    if (!map || !layer) return
+    if (!map || !gridLayer || !markerLayer) return
 
-    layer.clearLayers()
+    gridLayer.clearLayers()
+    markerLayer.clearLayers() // 격자가 갱신되면 기존 마커도 지운다
 
     if (!gridOverlay || gridOverlay.status !== "success") {
       geoLayer?.setStyle({ fillOpacity: BASE_STYLE.fillOpacity })
       return
     }
-
     geoLayer?.setStyle({ fillOpacity: 0.08 })
 
     const bounds = []
+    
     gridOverlay.cells.forEach((cell) => {
       const { north, south, east, west } = cell.bounds
-      L.rectangle([[south, west], [north, east]], {
+      const rect = L.rectangle([[south, west], [north, east]], {
         color: "#fff",
         weight: 1,
         fillColor: scoreToColor(cell.total_score),
         fillOpacity: 0.75,
         className: "grid-cell-rect",
       })
-        .bindTooltip(`${cell.total_score}점`, { sticky: true })
-        .on("click", () => onGridCellClickRef.current?.(cell.cell_id))
-        .addTo(layer)
+        
+      rect.bindTooltip(`${cell.total_score}점`, { sticky: true })
+      
+      // 🚨 격자 클릭 시에만 해당 격자의 매물을 마커로 그립니다.
+      // 🚨 이 부분만 덮어씌워서 테스트해 보세요!
+      rect.on("click", () => {
+        console.log("1. 클릭된 격자 ID:", cell.cell_id);
+        console.log("2. 백엔드에서 온 매물 데이터:", cell.listings);
+
+        onGridCellClickRef.current?.(cell.cell_id)
+        markerLayer.clearLayers()
+
+        const cellListings = cell.listings ?? []
+        
+        if (cellListings.length > 0) {
+          console.log(`3. ${cellListings.length}개의 매물 마커를 그립니다!`);
+          
+          groupListingsByCoordinate(cellListings).forEach(({ lat, lng, items }) => {
+            // CSS 문제인지 확인하기 위해 임시로 '파란색 기본 마커'를 띄워봅니다.
+            L.marker([lat, lng])
+              .bindPopup(listingPopupHtml(items))
+              .addTo(markerLayer);
+          })
+        } else {
+          console.warn("⚠️ 이 격자에는 매물 데이터(listings)가 아예 없습니다!");
+        }
+      })
+      
+      rect.addTo(gridLayer)
       bounds.push([south, west], [north, east])
     })
 
     if (bounds.length > 0) {
-      map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 18 })
+      map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 19 })
     }
   }, [gridOverlay])
 
   return (
     <div className="dong-map-wrap">
       <div ref={mapElRef} className="dong-map" />
-
       <div className="dong-map-legend">
         <div className="legend-title">생존 가능성 점수</div>
         <div
@@ -261,7 +315,6 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections, gri
           점선 테두리 = 배후인구가 구 단위 추정치(행정동 실측 아님)
         </div>
       </div>
-
       {loading && <div className="dong-map-overlay">점수 불러오는 중…</div>}
       {error && <div className="dong-map-overlay dong-map-overlay-error">{error}</div>}
     </div>

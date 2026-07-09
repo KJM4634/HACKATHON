@@ -118,6 +118,21 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
         )}
       </p>
 
+      {detail.rent_count > 0 && (
+        <div className="listings-section">
+          <h3 className="modal-subheading">
+            매물 정보 <span className="listings-count-badge">{detail.rent_count}건</span>
+          </h3>
+          {(detail.avg_deposit != null || detail.avg_rent_per_pyeong != null) && (
+            <p className="listings-avg-note">
+              평균 보증금 {detail.avg_deposit?.toLocaleString()}만원 · 평당 월세{" "}
+              {detail.avg_rent_per_pyeong?.toLocaleString()}만원
+            </p>
+          )}
+          <ListingsList listings={detail.listings} />
+        </div>
+      )}
+
       {detail.alternatives?.length > 0 && (
         <div className="low-score-section">
           <div className="low-score-tab-panel">
@@ -169,6 +184,40 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
           )}
           <p className="report-text">{report.reportText}</p>
         </>
+      )}
+    </>
+  )
+}
+
+function ListingsList({ listings }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!listings || listings.length === 0) {
+    return <p className="placeholder-text">매물 정보가 없습니다.</p>
+  }
+  const visible = expanded ? listings : listings.slice(0, 8)
+  return (
+    <>
+      <ul className="listings-list">
+        {visible.map((item, idx) => (
+          <li className="listing-card" key={idx}>
+            <div className="listing-card-top">
+              <span className="listing-name">{item.name}</span>
+              <span className="listing-floor">{item.floor}층</span>
+            </div>
+            <div className="listing-card-bottom">
+              <span className="listing-price">
+                {item.deposit.toLocaleString()}/{item.rent.toLocaleString()}
+              </span>
+              <span className="listing-area">{item.area_m2 > 0 ? `${item.area_m2}m²` : "면적 미상"}</span>
+              {item.rent_per_pyeong > 0 && <span className="listing-per-pyeong">평당 {item.rent_per_pyeong}만</span>}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {listings.length > 8 && (
+        <button className="listings-toggle" onClick={() => setExpanded((v) => !v)}>
+          {expanded ? "접기" : `매물 ${listings.length - 8}건 더보기`}
+        </button>
       )}
     </>
   )
