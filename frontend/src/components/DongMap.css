@@ -131,6 +131,15 @@
   cursor: default;
 }
 
+.grid-cell-rect {
+  cursor: pointer;
+  transition: filter 0.1s ease;
+}
+
+.grid-cell-rect:hover {
+  filter: brightness(0.92);
+}
+
 .leaflet-tooltip {
   font: inherit;
   font-size: 12px;

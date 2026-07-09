@@ -241,3 +241,57 @@ class QueryParseResponse(BaseModel):
         ..., description="True면 업종 미확정이거나 지역이 0곳/2곳 이상이라 사용자 확인이 필요함"
     )
     message: str = Field(..., description="사용자에게 보여줄 안내 문구")
+
+
+class GridCellBounds(BaseModel):
+    """지도에 사각형(L.rectangle)을 그리기 위한 경계."""
+
+    north: float
+    south: float
+    east: float
+    west: float
+
+
+class GridCellSummary(BaseModel):
+    """격자 지도 색칠용 — 셀 하나당 가벼운 점수 정보만 (app/grid.py 참고)."""
+
+    cell_id: str
+    center_위도: float
+    center_경도: float
+    bounds: GridCellBounds
+    total_score: int
+    breakdown: ScoreBreakdown
+
+
+class GridResponse(BaseModel):
+    region_id: str = Field(..., description="이 격자가 속한 행정동의 region_id")
+    행정동명: str
+    category: str
+    cell_size_m: int = Field(..., description="이 행정동에 맞춰 고른 격자 한 변의 길이(m) — 100/250/500/1000 중 하나")
+    cells: list[GridCellSummary]
+
+
+class GridCellDetailRequest(BaseModel):
+    region_id: str
+    category: str
+    cell_id: str
+
+
+class GridCellDetailResponse(BaseModel):
+    """격자 셀 상세 패널용. Track A는 행정동 단위로 학습된 모델이라 격자에는
+    적용하지 않고(available=False 고정), AI 해설(Gemini 리포트)도 클릭마다 호출하면
+    무료 티어 쿼터를 빠르게 소모하니 이번 버전에서는 만들지 않는다 — 숫자 기반
+    게이지/막대바/대안만 보여준다."""
+
+    cell_id: str
+    label: str = Field(..., description="예: '부산진구 부전2동 (격자 B-4)'")
+    total_score: int
+    breakdown: ScoreBreakdown
+    competitor_count: int
+    closure_available: bool
+    closure_rate: float
+    closure_sample: int = Field(..., description="영업중_점포수 + 최근1년_폐업_수")
+    data_limitations: list[str]
+    alternatives: list[AlternativeRegion] = Field(
+        default_factory=list, description="같은 행정동 내에서 점수가 더 높은 다른 격자 (최대 3곳)"
+    )

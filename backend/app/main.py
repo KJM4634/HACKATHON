@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()  # backend/.env 에서 GEMINI_API_KEY 등을 읽어옴
 
 from app.api.analyze import router as analyze_router  # noqa: E402
+from app.api.grid import router as grid_router  # noqa: E402
 
 app = FastAPI(title="여기차려 API")
 
@@ -16,6 +17,7 @@ app.add_middleware(
 )
 
 app.include_router(analyze_router)
+app.include_router(grid_router)
 
 
 @app.get("/health")

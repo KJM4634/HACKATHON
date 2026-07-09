@@ -13,8 +13,9 @@ import {
 import DongMap from "./components/DongMap"
 import AnalysisPanel from "./components/AnalysisPanel"
 import RegionDetailModal from "./components/RegionDetailModal"
+import GridCellDetailPanel from "./components/GridCellDetailPanel"
 import QueryBar from "./components/QueryBar"
-import { fetchBulkScores, fetchRegions, fetchReport, parseQuery } from "./api"
+import { fetchBulkScores, fetchGrid, fetchGridCellDetail, fetchRegions, fetchReport, parseQuery } from "./api"
 import { matchesRegionQuery } from "./regionAliases"
 import "./App.css"
 
@@ -41,6 +42,11 @@ function App() {
   // modal과 분리해서 따로 든다 — onClose가 modal을 {open:false}로 통째로 갈아치우기 때문에,
   // modal 안에 두면 팝업을 닫는 순간 대안 정보가 같이 사라져서 지도에 계속 못 보여준다.
   const [mapConnections, setMapConnections] = useState(null)
+  // 행정동 상세를 열면 그 동을 격자로 잘라 지도에 확대해서 보여준다("격자 확대
+  // 모드"). modal과 별도로 두는 이유는 위 mapConnections와 같다(닫기 동작이 서로
+  // 다른 시점에 일어남 — 격자는 셀 상세를 보다가 "행정동 전체로" 눌러도 유지돼야 함).
+  const [gridOverlay, setGridOverlay] = useState(null)
+  const [gridCell, setGridCell] = useState({ open: false })
   const skipNextResetRef = useRef(false) // 자연어 질의가 업종을 바꿀 때, 아래 idle 리셋 이펙트가 로딩 상태를 덮어쓰지 않도록
 
   useEffect(() => {
@@ -61,6 +67,9 @@ function App() {
     }
     setAnalysis({ status: "idle" })
     setMapConnections(null) // 업종이 바뀌면 이전 업종 기준 대안도 더 이상 유효하지 않음
+    setModal({ open: false }) // 열려있던 행정동 상세도 이전 업종 기준이라 같이 닫음
+    setGridOverlay(null)
+    setGridCell({ open: false })
   }, [category])
 
   async function handleAnalyze(overrideCategory, overrideSearchQuery) {
@@ -149,27 +158,55 @@ function App() {
   async function openRegionDetail(regionId, regionName, overrideCategory) {
     const effectiveCategory = overrideCategory ?? category
     setModal({ open: true, status: "loading", regionId, regionName })
-    try {
-      const report = await fetchReport([regionId], effectiveCategory)
-      const candidate = report.candidates[0]
-      setModal({
-        open: true,
-        status: "success",
-        regionId,
-        regionName,
-        candidate,
-        reportText: report.report_text,
-        isFallback: report.is_fallback,
+    setGridCell({ open: false }) // 다른 동을 열면 이전에 보던 셀 상세는 닫음
+
+    const reportPromise = fetchReport([regionId], effectiveCategory)
+      .then((report) => {
+        const candidate = report.candidates[0]
+        setModal({
+          open: true,
+          status: "success",
+          regionId,
+          regionName,
+          candidate,
+          reportText: report.report_text,
+          isFallback: report.is_fallback,
+        })
+        // 대안이 있으면(팝업을 닫아도) 지도에 연결선을 계속 보여준다 — 사용자가 팝업을
+        // 닫고 지도에서 대안 위치를 직접 둘러볼 수 있게. 없으면(고득점) 이전에 다른
+        // 지역을 보다가 남아있던 연결선도 지운다.
+        setMapConnections(
+          candidate.alternatives.length > 0 ? { origin: candidate.region, alternatives: candidate.alternatives } : null
+        )
       })
-      // 대안이 있으면(팝업을 닫아도) 지도에 연결선을 계속 보여준다 — 사용자가 팝업을
-      // 닫고 지도에서 대안 위치를 직접 둘러볼 수 있게. 없으면(고득점) 이전에 다른
-      // 지역을 보다가 남아있던 연결선도 지운다.
-      setMapConnections(
-        candidate.alternatives.length > 0 ? { origin: candidate.region, alternatives: candidate.alternatives } : null
-      )
+      .catch((err) => setModal({ open: true, status: "error", regionId, regionName, error: err.message }))
+
+    // 상세 리포트와 별개로(동시에) 그 동을 격자로 잘라 지도에 확대해서 보여준다.
+    // 실패해도 상세 패널 자체는 살아있어야 하니 독립적으로 처리한다.
+    setGridOverlay({ status: "loading", regionId, category: effectiveCategory })
+    const gridPromise = fetchGrid(regionId, effectiveCategory)
+      .then((grid) => setGridOverlay({ status: "success", regionId, category: effectiveCategory, ...grid }))
+      .catch((err) => setGridOverlay({ status: "error", regionId, category: effectiveCategory, error: err.message }))
+
+    await Promise.all([reportPromise, gridPromise])
+  }
+
+  async function openGridCell(cellId) {
+    if (!gridOverlay || gridOverlay.status !== "success") return
+    const { regionId, category: gridCategory } = gridOverlay
+    setGridCell({ open: true, status: "loading", cellId })
+    try {
+      const detail = await fetchGridCellDetail(regionId, gridCategory, cellId)
+      setGridCell({ open: true, status: "success", cellId, detail })
     } catch (err) {
-      setModal({ open: true, status: "error", regionId, regionName, error: err.message })
+      setGridCell({ open: true, status: "error", cellId, error: err.message })
     }
+  }
+
+  function exitGridMode() {
+    setModal({ open: false })
+    setGridOverlay(null)
+    setGridCell({ open: false })
   }
 
   return (
@@ -254,15 +291,24 @@ function App() {
             onRegionClick={openRegionDetail}
             highlightRegionIds={analysis.highlightRegionIds}
             connections={mapConnections}
+            gridOverlay={gridOverlay}
+            onGridCellClick={openGridCell}
           />
         </section>
 
         <aside className="side-panel">
-          {modal.open ? (
+          {gridCell.open ? (
+            <GridCellDetailPanel
+              cellDetail={gridCell}
+              onBack={() => setGridCell({ open: false })}
+              onClose={exitGridMode}
+              onAlternativeClick={(cellId) => openGridCell(cellId)}
+            />
+          ) : modal.open ? (
             <RegionDetailModal
               modal={modal}
               category={category}
-              onClose={() => setModal({ open: false })}
+              onClose={exitGridMode}
               onAlternativeClick={(regionId) => openRegionDetail(regionId)}
             />
           ) : (
@@ -299,6 +345,11 @@ function DataNoticeFooter() {
             수익성 점수는 카페와 음식점 서브카테고리(한식/중식/분식/기타음식점) 5개 모두 '음식/주점' 매출 버킷(카페+음식점+주점
             통합)을, 편의점은 '유통' 매출 버킷(소매 전체)을 근사값으로 사용합니다 — 업종별로 분리된 매출 데이터가 없어 같은
             지역이면 5개 카테고리의 수익성 숫자가 동일합니다.
+          </li>
+          <li>
+            행정동을 클릭하면 보이는 격자(100~1000m)는 인구·유동인구 데이터가 원래 행정동 단위뿐이라, 그 동의 상가업소
+            분포로 다시 한 번 근사해 배분한 것입니다(구 단위→행정동→격자, 2단계 근사) — 그래서 격자 점수는 부산 전체
+            기준이 아니라 같은 행정동 안에서의 상대 비교로만 봐주세요.
           </li>
         </ul>
       </details>

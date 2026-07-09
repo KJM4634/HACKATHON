@@ -60,3 +60,20 @@ export function parseQuery(query) {
     "질의 분석 실패"
   )
 }
+
+export function fetchGrid(regionId, category) {
+  const url = `${API_BASE}/api/grid?${new URLSearchParams({ region_id: regionId, category })}`
+  return request(url, undefined, "격자 조회 실패")
+}
+
+export function fetchGridCellDetail(regionId, category, cellId) {
+  return request(
+    `${API_BASE}/api/grid/cell`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ region_id: regionId, category, cell_id: cellId }),
+    },
+    "격자 상세 조회 실패"
+  )
+}

@@ -34,19 +34,22 @@ function stripSido(name) {
   return name.replace(/^부산광역시\s*/, "")
 }
 
-function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
+function DongMap({ category, onRegionClick, highlightRegionIds, connections, gridOverlay, onGridCellClick }) {
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
   const geoLayerRef = useRef(null)
   const connectionsLayerRef = useRef(null)
+  const gridLayerRef = useRef(null)
   const scoresRef = useRef({})
   const highlightRef = useRef(new Set())
   const onRegionClickRef = useRef(onRegionClick)
+  const onGridCellClickRef = useRef(onGridCellClick)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // 이벤트 핸들러는 지도 생성 시 1회만 등록되므로, 최신 콜백을 ref로 따라가게 한다
   onRegionClickRef.current = onRegionClick
+  onGridCellClickRef.current = onGridCellClick
 
   // 지도 + GeoJSON 레이어는 한 번만 만든다
   useEffect(() => {
@@ -60,6 +63,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
     })
     mapRef.current = map
     connectionsLayerRef.current = L.layerGroup().addTo(map)
+    gridLayerRef.current = L.layerGroup().addTo(map)
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
@@ -100,6 +104,7 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
       mapRef.current = null
       geoLayerRef.current = null
       connectionsLayerRef.current = null
+      gridLayerRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -194,6 +199,45 @@ function DongMap({ category, onRegionClick, highlightRegionIds, connections }) {
 
     map.fitBounds(L.latLngBounds(points), { padding: [56, 56], maxZoom: 15 })
   }, [connections])
+
+  // 행정동 상세를 열면 그 동만 격자로 잘라 확대해서 보여준다("격자 확대 모드").
+  // 나머지 205개 행정동은 흐리게(fillOpacity만 낮춤 — 개별 fillColor는 안 건드림)
+  // 남겨서 지금 보는 동이 부산 어디쯔인지 맥락은 유지한다.
+  useEffect(() => {
+    const map = mapRef.current
+    const layer = gridLayerRef.current
+    const geoLayer = geoLayerRef.current
+    if (!map || !layer) return
+
+    layer.clearLayers()
+
+    if (!gridOverlay || gridOverlay.status !== "success") {
+      geoLayer?.setStyle({ fillOpacity: BASE_STYLE.fillOpacity })
+      return
+    }
+
+    geoLayer?.setStyle({ fillOpacity: 0.08 })
+
+    const bounds = []
+    gridOverlay.cells.forEach((cell) => {
+      const { north, south, east, west } = cell.bounds
+      L.rectangle([[south, west], [north, east]], {
+        color: "#fff",
+        weight: 1,
+        fillColor: scoreToColor(cell.total_score),
+        fillOpacity: 0.75,
+        className: "grid-cell-rect",
+      })
+        .bindTooltip(`${cell.total_score}점`, { sticky: true })
+        .on("click", () => onGridCellClickRef.current?.(cell.cell_id))
+        .addTo(layer)
+      bounds.push([south, west], [north, east])
+    })
+
+    if (bounds.length > 0) {
+      map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 18 })
+    }
+  }, [gridOverlay])
 
   return (
     <div className="dong-map-wrap">
