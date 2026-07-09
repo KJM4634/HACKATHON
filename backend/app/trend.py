@@ -81,9 +81,9 @@ def estimate_trend_fit(행정동코드: str, category: str) -> TrendFit:
 
     relative = dong_yoy - city_median
     if relative > 0:
-        label = "최근 매출 흐름이 부산 평균보다 빠르게 성장하는 추세로 보입니다"
+        label = "최근 1년 매출이 부산 평균보다 빠르게 성장하는 추세를 보이고 있어, 상권이 활발해지는 편일 수 있습니다"
     else:
-        label = "최근 매출 흐름이 부산 평균보다 완만한 추세로 보입니다"
+        label = "최근 1년 매출이 부산 평균보다 완만한 추세를 보이고 있어, 상권이 안정적으로 유지되는 편일 수 있습니다"
 
     return TrendFit(
         data_available=True,

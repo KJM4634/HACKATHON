@@ -175,9 +175,6 @@
 }
 
 .trend-note {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-secondary);
   text-align: center;
   background: var(--surface-2);
   border: 1px solid var(--border-ring);
@@ -186,7 +183,20 @@
   margin: 0 0 12px;
 }
 
-.trend-note-muted {
+.trend-note-main {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.trend-note-detail {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.trend-note-muted .trend-note-main {
   color: var(--text-muted);
   font-style: italic;
 }

@@ -199,7 +199,11 @@ class TrendFit(BaseModel):
     )
     dong_yoy_pct: float | None = Field(None, description="이 동의 최근 3개월 평균 대비 작년 동기 증감률(%)")
     city_median_yoy_pct: float | None = Field(None, description="부산 206개 동 동일 매출 버킷 증감률의 중앙값(%)")
-    label: str = Field(..., description="완곡한 상대적 참고 문구 (예: '최근 매출 흐름이 부산 평균보다 빠르게 성장하는 추세로 보입니다')")
+    label: str = Field(
+        ...,
+        description="완곡한 상대적 참고 문구 (예: '최근 1년 매출이 부산 평균보다 빠르게 성장하는 추세를 "
+        "보이고 있어, 상권이 활발해지는 편일 수 있습니다')",
+    )
 
 
 class AlternativeRegion(BaseModel):

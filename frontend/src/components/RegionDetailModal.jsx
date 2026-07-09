@@ -70,11 +70,20 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
       </div>
 
       {candidate.trend && (
-        <p className={`trend-note ${candidate.trend.data_available ? "" : "trend-note-muted"}`}>
-          {candidate.trend.data_available
-            ? `${candidate.trend.dong_yoy_pct > candidate.trend.city_median_yoy_pct ? "▲" : "▽"} ${candidate.trend.label} (이 동 ${candidate.trend.dong_yoy_pct > 0 ? "+" : ""}${candidate.trend.dong_yoy_pct}% · 부산 중앙값 ${candidate.trend.city_median_yoy_pct > 0 ? "+" : ""}${candidate.trend.city_median_yoy_pct}%)`
-            : candidate.trend.label}
-        </p>
+        <div className={`trend-note ${candidate.trend.data_available ? "" : "trend-note-muted"}`}>
+          <p className="trend-note-main">
+            {candidate.trend.data_available
+              ? `${candidate.trend.dong_yoy_pct > candidate.trend.city_median_yoy_pct ? "▲" : "▽"} ${candidate.trend.label}`
+              : candidate.trend.label}
+          </p>
+          {candidate.trend.data_available && (
+            <p className="trend-note-detail">
+              이 동 {candidate.trend.dong_yoy_pct > 0 ? "+" : ""}
+              {candidate.trend.dong_yoy_pct}% · 부산 중앙값 {candidate.trend.city_median_yoy_pct > 0 ? "+" : ""}
+              {candidate.trend.city_median_yoy_pct}%
+            </p>
+          )}
+        </div>
       )}
 
       {candidate.budget_fit && (
