@@ -5,6 +5,7 @@ from app.budget import estimate_budget_fit
 from app.data_provider import get_data_provider
 from app.data_provider.base import DataProvider
 from app.data_provider.local.category_mapping import ALL_CATEGORIES
+from app.home_distance import estimate_home_distance
 from app.llm.query_parser import parse_query
 from app.llm.report import generate_report
 from app.llm.strategy import generate_differentiation_strategy
@@ -119,11 +120,16 @@ def report(req: ReportRequest) -> ReportResponse:
 
     같은 (지역 조합, 업종, include_alternatives, monthly_budget_krw)로 이미 성공한
     리포트가 있으면 Gemini를 다시 부르지 않고 그 결과를 그대로 돌려준다(무료 티어
-    쿼터 절약)."""
+    쿼터 절약).
+
+    home_lat/home_lng는 일부러 캐시 키에 넣지 않는다 — Gemini 리포트 문장과는
+    무관한 정보라(리포트에 반영 안 함), 캐시 키에 넣으면 지도를 클릭할 때마다
+    사실상 매번 새 캐시 항목이 생겨 캐시 효과가 없어진다. 대신 캐시 히트/미스와
+    상관없이 매 요청마다 _with_home_distance()로 이 부분만 새로 계산해 덮어씌운다."""
     cache_key = (tuple(sorted(req.region_ids)), req.category, req.include_alternatives, req.monthly_budget_krw)
     cached = _report_cache.get(cache_key)
     if cached is not None:
-        return cached
+        return _with_home_distance(cached, req.home_lat, req.home_lng)
 
     provider: DataProvider = get_data_provider()
     candidates = [
@@ -157,6 +163,21 @@ def report(req: ReportRequest) -> ReportResponse:
     )
     if not is_fallback:
         _report_cache[cache_key] = result
+    return _with_home_distance(result, req.home_lat, req.home_lng)
+
+
+def _with_home_distance(result: ReportResponse, home_lat: float | None, home_lng: float | None) -> ReportResponse:
+    """home_lat/home_lng가 있으면 candidates(+대안)에 home_distance를 채운 복사본을
+    돌려준다. 캐시된 원본 객체는 절대 직접 수정하지 않는다 — 그대로 수정하면 다른
+    집 위치(또는 위치 없음)로 온 다음 요청이 이전 요청의 결과를 그대로 받는
+    사고가 캐시가 살아있는 동안 계속된다."""
+    if home_lat is None or home_lng is None:
+        return result
+    result = result.model_copy(deep=True)
+    for candidate in result.candidates:
+        candidate.home_distance = estimate_home_distance(home_lat, home_lng, candidate.region.위도, candidate.region.경도)
+        for alt in candidate.alternatives:
+            alt.home_distance = estimate_home_distance(home_lat, home_lng, alt.region.위도, alt.region.경도)
     return result
 
 

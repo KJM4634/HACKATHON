@@ -97,6 +97,11 @@ function AnalysisPanel({ analysis, onCardClick }) {
               {candidate.budget_fit && !candidate.budget_fit.is_unreliable && (
                 <p className="budget-fit-note budget-fit-note-inline">{candidate.budget_fit.label}</p>
               )}
+              {candidate.home_distance && (
+                <p className="home-distance-note home-distance-note-inline">
+                  🏠 집에서 약 {candidate.home_distance.distance_km}km
+                </p>
+              )}
               {hasAlternatives && (
                 <button
                   type="button"

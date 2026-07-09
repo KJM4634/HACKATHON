@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from app.alternatives import LOW_SCORE_THRESHOLD, find_alternatives
+from app.home_distance import estimate_home_distance
 from app.data_provider.local.category_mapping import (
     CATEGORY_TO_RESTAURANT_UPTAE,
     CATEGORY_TO_REVENUE_BUCKET,
@@ -319,7 +320,14 @@ def to_grid_response(region_id: str, 행정동명: str, category: str, cells: li
     )
 
 
-def to_cell_detail(region_id: str, 행정동명: str, cells: list, cell_id: str) -> GridCellDetailResponse:
+def to_cell_detail(
+    region_id: str,
+    행정동명: str,
+    cells: list,
+    cell_id: str,
+    home_lat: float | None = None,
+    home_lng: float | None = None,
+) -> GridCellDetailResponse:
     target = next((c for c in cells if c.cell_id == cell_id), None)
     if target is None:
         raise ValueError(f"격자 셀을 찾을 수 없음: {cell_id}")
@@ -366,4 +374,9 @@ def to_cell_detail(region_id: str, 행정동명: str, cells: list, cell_id: str)
         closure_sample=target.closure_active + target.closure_closed_recent,
         data_limitations=target.data_limitations,
         alternatives=alternatives,
+        home_distance=(
+            estimate_home_distance(home_lat, home_lng, target.center_lat, target.center_lon)
+            if home_lat is not None and home_lng is not None
+            else None
+        ),
     )

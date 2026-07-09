@@ -33,6 +33,15 @@ const ALTERNATIVE_COLOR = "#0ca30c"
 const SELECTED_CELL_STYLE = { color: "#2563eb", weight: 4 }
 const UNSELECTED_CELL_STYLE = { color: "#fff", weight: 1 }
 
+// "우리 집" 위치 마커 — 격자 선택과 같은 파란 계열이면 헷갈리니, 다른 배지에
+// 안 쓰인 보라색으로 구분한다. 이모지 하나짜리 divIcon이라 별도 이미지 에셋이 필요 없다.
+const HOME_MARKER_ICON = L.divIcon({
+  html: '<span class="home-marker-emoji">🏠</span>',
+  className: "home-marker-icon",
+  iconSize: [28, 28],
+  iconAnchor: [14, 26],
+})
+
 // GeoJSON의 adm_nm은 "부산광역시 OO구 OO동"이지만, TOP3 카드·상세 팝업 등
 // 나머지 화면은 전부 백엔드 RegionInfo.행정동명("OO구 OO동", 시도명 없이) 형식을
 // 쓴다. 표기를 통일하려고 지도 쪽에서 시도명만 잘라낸다.
@@ -48,6 +57,9 @@ function DongMap({
   gridOverlay,
   onGridCellClick,
   selectedCellId,
+  isSettingHome,
+  onSetHomeLocation,
+  homeLocation,
 }) {
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
@@ -55,16 +67,21 @@ function DongMap({
   const connectionsLayerRef = useRef(null)
   const gridLayerRef = useRef(null)
   const gridCellLayersRef = useRef(new Map()) // cell_id -> L.rectangle, 선택 테두리 갱신용
+  const homeMarkerRef = useRef(null)
   const scoresRef = useRef({})
   const highlightRef = useRef(new Set())
   const onRegionClickRef = useRef(onRegionClick)
   const onGridCellClickRef = useRef(onGridCellClick)
+  const isSettingHomeRef = useRef(isSettingHome)
+  const onSetHomeLocationRef = useRef(onSetHomeLocation)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // 이벤트 핸들러는 지도 생성 시 1회만 등록되므로, 최신 콜백을 ref로 따라가게 한다
   onRegionClickRef.current = onRegionClick
   onGridCellClickRef.current = onGridCellClick
+  isSettingHomeRef.current = isSettingHome
+  onSetHomeLocationRef.current = onSetHomeLocation
 
   // 지도 + GeoJSON 레이어는 한 번만 만든다
   useEffect(() => {
@@ -79,6 +96,14 @@ function DongMap({
     mapRef.current = map
     connectionsLayerRef.current = L.layerGroup().addTo(map)
     gridLayerRef.current = L.layerGroup().addTo(map)
+
+    // 집 위치 지정 모드(isSettingHome)에서는 지도 아무 곳을 클릭해도(폴리곤 위 포함 —
+    // Leaflet 벡터 레이어는 기본적으로 클릭이 지도까지 버블링됨) 행정동/격자 선택
+    // 대신 집 위치를 지정한다. 폴리곤/격자 셀 각각의 클릭 핸들러에서 이 모드일 때
+    // 자기 동작을 건너뛰게 해뒀다(아래 onEachFeature, 격자 렌더링 useEffect 참고).
+    map.on("click", (e) => {
+      if (isSettingHomeRef.current) onSetHomeLocationRef.current?.(e.latlng.lat, e.latlng.lng)
+    })
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
@@ -98,6 +123,7 @@ function DongMap({
               lyr.setStyle(highlightRef.current.has(regionId) ? HIGHLIGHT_STYLE : { weight: BASE_STYLE.weight })
             )
             lyr.on("click", () => {
+              if (isSettingHomeRef.current) return // 지도 click 이벤트로 버블링돼 집 위치 지정으로 처리됨
               onRegionClickRef.current?.(regionId, stripSido(feature.properties.adm_nm))
             })
             // sticky: true로 마우스를 따라다니게 함 — Leaflet이 호버 중인 레이어 하나에만
@@ -292,7 +318,10 @@ function DongMap({
         className: "grid-cell-rect",
       })
         .bindTooltip(`${cell.total_score}점`, { sticky: true })
-        .on("click", () => onGridCellClickRef.current?.(cell.cell_id))
+        .on("click", () => {
+          if (isSettingHomeRef.current) return // 지도 click 이벤트로 버블링돼 집 위치 지정으로 처리됨
+          onGridCellClickRef.current?.(cell.cell_id)
+        })
         .addTo(layer)
       gridCellLayersRef.current.set(cell.cell_id, rect)
 
@@ -322,6 +351,28 @@ function DongMap({
       if (selected) rect.bringToFront()
     })
   }, [selectedCellId, gridOverlay])
+
+  // "우리 집" 위치가 지정/변경/해제되면 마커를 그 상태에 맞춰 다시 그린다.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    homeMarkerRef.current?.remove()
+    homeMarkerRef.current = null
+
+    if (!homeLocation) return
+    homeMarkerRef.current = L.marker([homeLocation.lat, homeLocation.lng], { icon: HOME_MARKER_ICON, zIndexOffset: 1000 })
+      .bindTooltip("우리 집", { direction: "top", offset: [0, -22] })
+      .addTo(map)
+  }, [homeLocation])
+
+  // 집 위치 지정 모드에서는 커서를 크로스헤어로 바꿔 "지금 클릭하면 여기로
+  // 지정된다"는 걸 시각적으로 알려준다.
+  useEffect(() => {
+    const el = mapElRef.current
+    if (!el) return
+    el.style.cursor = isSettingHome ? "crosshair" : ""
+  }, [isSettingHome])
 
   return (
     <div className="dong-map-wrap">

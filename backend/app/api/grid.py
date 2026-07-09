@@ -56,7 +56,7 @@ def get_grid(region_id: str, category: str) -> GridResponse:
 def get_grid_cell_detail(req: GridCellDetailRequest) -> GridCellDetailResponse:
     cells, _, 행정동명 = _get_or_compute_cells(req.region_id, req.category)
     try:
-        return to_cell_detail(req.region_id, 행정동명, cells, req.cell_id)
+        return to_cell_detail(req.region_id, 행정동명, cells, req.cell_id, req.home_lat, req.home_lng)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 

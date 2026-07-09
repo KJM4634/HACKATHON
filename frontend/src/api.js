@@ -37,7 +37,7 @@ export function fetchRegions() {
   return request(`${API_BASE}/api/regions`, undefined, "지역 목록 조회 실패")
 }
 
-export function fetchReport(regionIds, category, monthlyBudgetKrw) {
+export function fetchReport(regionIds, category, monthlyBudgetKrw, homeLocation) {
   return request(
     `${API_BASE}/api/report`,
     {
@@ -47,6 +47,8 @@ export function fetchReport(regionIds, category, monthlyBudgetKrw) {
         region_ids: regionIds,
         category,
         monthly_budget_krw: monthlyBudgetKrw ?? null,
+        home_lat: homeLocation?.lat ?? null,
+        home_lng: homeLocation?.lng ?? null,
       }),
     },
     "리포트 생성 실패"
@@ -70,13 +72,19 @@ export function fetchGrid(regionId, category) {
   return request(url, undefined, "격자 조회 실패")
 }
 
-export function fetchGridCellDetail(regionId, category, cellId) {
+export function fetchGridCellDetail(regionId, category, cellId, homeLocation) {
   return request(
     `${API_BASE}/api/grid/cell`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ region_id: regionId, category, cell_id: cellId }),
+      body: JSON.stringify({
+        region_id: regionId,
+        category,
+        cell_id: cellId,
+        home_lat: homeLocation?.lat ?? null,
+        home_lng: homeLocation?.lng ?? null,
+      }),
     },
     "격자 상세 조회 실패"
   )

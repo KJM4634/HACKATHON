@@ -206,6 +206,19 @@ class TrendFit(BaseModel):
     )
 
 
+class HomeDistance(BaseModel):
+    """사용자가 지도에서 지정한 "우리 집" 위치와 이 지역 사이의 참고용 직선거리.
+    app/home_distance.py 참고. budget_fit/trend와 같은 패턴 — total_score
+    계산에는 전혀 반영되지 않는다.
+
+    이동 "시간"은 일부러 넣지 않았다. 실시간 경로/교통 API가 없어서 직선거리를
+    가정된 평균속도로 나누면 실제 도로 경로·신호·정체를 전혀 반영 못 하는데도
+    "차로 O분"처럼 확정적인 숫자로 보여, 신뢰도 낮은 값을 사실처럼 오해시킬
+    리스크가 있다고 판단했다."""
+
+    distance_km: float = Field(..., ge=0, description="haversine 직선거리(km) — 실제 도로 경로 아님")
+
+
 class AlternativeRegion(BaseModel):
     """이 지역보다 점수가 높고 가까운(3km 이내) 대안 후보."""
 
@@ -217,6 +230,9 @@ class AlternativeRegion(BaseModel):
     )
     budget_fit: BudgetFit | None = Field(
         None, description="요청에 monthly_budget_krw가 있을 때만 채워짐"
+    )
+    home_distance: HomeDistance | None = Field(
+        None, description="요청에 home_lat/home_lng가 있을 때만 채워짐"
     )
 
 
@@ -242,6 +258,9 @@ class AnalyzeResponse(BaseModel):
         description="이 지역 매출의 최근 추세 참고 배지. /api/analyze, /api/report에서는 항상 채워지고, "
         "격자 응답에는 이 필드 자체가 없음(행정동 단위 전용) — 스키마상 optional인 건 기존 테스트에서 "
         "가벼운 스텁 AnalyzeResponse를 만들 때 매번 채우지 않아도 되게 하기 위함일 뿐, 실제 API 응답에서는 항상 값이 있다",
+    )
+    home_distance: HomeDistance | None = Field(
+        None, description="요청에 home_lat/home_lng가 있을 때만 채워짐. total_score 계산에는 전혀 반영되지 않는 참고용 부가 정보"
     )
 
 
@@ -273,6 +292,8 @@ class ReportRequest(BaseModel):
         ge=0,
         description="사용자가 입력한 예상 월세 예산(원, 선택 입력). 없으면 budget_fit을 아예 계산하지 않음",
     )
+    home_lat: float | None = Field(None, description="사용자가 지도에서 지정한 '우리 집' 위도(선택 입력, home_lng와 함께 있어야 함)")
+    home_lng: float | None = Field(None, description="사용자가 지도에서 지정한 '우리 집' 경도(선택 입력, home_lat와 함께 있어야 함)")
 
 
 class ReportResponse(BaseModel):
@@ -331,6 +352,8 @@ class GridCellDetailRequest(BaseModel):
     region_id: str
     category: str
     cell_id: str
+    home_lat: float | None = Field(None, description="사용자가 지도에서 지정한 '우리 집' 위도(선택 입력, home_lng와 함께 있어야 함)")
+    home_lng: float | None = Field(None, description="사용자가 지도에서 지정한 '우리 집' 경도(선택 입력, home_lat와 함께 있어야 함)")
 
 
 class GridCellDetailResponse(BaseModel):
@@ -353,6 +376,9 @@ class GridCellDetailResponse(BaseModel):
     data_limitations: list[str]
     alternatives: list[AlternativeRegion] = Field(
         default_factory=list, description="같은 행정동 내에서 점수가 더 높은 다른 격자 (최대 3곳)"
+    )
+    home_distance: HomeDistance | None = Field(
+        None, description="요청에 home_lat/home_lng가 있을 때만 채워짐"
     )
 
 

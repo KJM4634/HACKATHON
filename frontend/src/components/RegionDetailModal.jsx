@@ -101,6 +101,10 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
         </p>
       )}
 
+      {candidate.home_distance && (
+        <p className="home-distance-note">🏠 집에서 약 {candidate.home_distance.distance_km}km (직선거리, 참고용)</p>
+      )}
+
       <h3 className="modal-subheading">세부 지표</h3>
       <div className="breakdown-bars">
         {BREAKDOWN_LABELS.map(({ key, label }) => {
@@ -163,6 +167,11 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
                         하나로 충분하다 — 대안 카드에는 정상 판단일 때만 붙인다. */}
                     {alt.budget_fit && !alt.budget_fit.is_unreliable && (
                       <p className="budget-fit-note budget-fit-note-inline">{alt.budget_fit.label}</p>
+                    )}
+                    {alt.home_distance && (
+                      <p className="home-distance-note home-distance-note-inline">
+                        🏠 집에서 약 {alt.home_distance.distance_km}km
+                      </p>
                     )}
                   </li>
                 ))}

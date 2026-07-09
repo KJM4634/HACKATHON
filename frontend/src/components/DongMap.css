@@ -147,3 +147,16 @@
   font-size: 12px;
   padding: 5px 9px;
 }
+
+.home-marker-icon {
+  background: none;
+  border: none;
+}
+
+.home-marker-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  filter: drop-shadow(0 1px 3px rgba(11, 11, 11, 0.45));
+}

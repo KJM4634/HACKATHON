@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import {
   Coffee,
   CookingPot,
+  Home,
   MapPin,
   MoreHorizontal,
   Sandwich,
@@ -39,6 +40,11 @@ function App() {
   // 예산은 업종을 바꿔도 유효한 값이라 카테고리 변경 리셋 이펙트 대상에서 뺐다.
   const [budgetInput, setBudgetInput] = useState("")
   const monthlyBudgetKrw = budgetInput.trim() && Number(budgetInput) > 0 ? Math.round(Number(budgetInput) * 10_000) : null
+  // "우리 집" 위치(선택 입력, 지도 클릭으로 지정) — 예산과 같은 이유로 카테고리/검색어가
+  // 바뀌어도 유지한다. 지도 클릭 한 번으로 지정되게 하는 게 목적이라 지정 모드(isSettingHome)를
+  // 따로 두고, 그 모드에서 다음 지도 클릭을 "행정동 선택"이 아니라 "집 위치 지정"으로 가로챈다.
+  const [homeLocation, setHomeLocation] = useState(null)
+  const [isSettingHome, setIsSettingHome] = useState(false)
   const [regions, setRegions] = useState([]) // 검색 필터링용 행정동 목록(region_id -> 이름)
   const [analysis, setAnalysis] = useState({ status: "idle" })
   const [modal, setModal] = useState({ open: false })
@@ -106,7 +112,7 @@ function App() {
         .slice(0, TOP_N)
         .map((c) => c.region_id)
 
-      const report = await fetchReport(topRegionIds, effectiveCategory, monthlyBudgetKrw)
+      const report = await fetchReport(topRegionIds, effectiveCategory, monthlyBudgetKrw, homeLocation)
       setAnalysis({
         status: "success",
         top3: report.candidates,
@@ -187,7 +193,7 @@ function App() {
     setModal({ open: true, status: "loading", regionId, regionName })
     setGridCell({ open: false }) // 다른 동을 열면 이전에 보던 셀 상세는 닫음
 
-    const reportPromise = fetchReport([regionId], effectiveCategory, monthlyBudgetKrw)
+    const reportPromise = fetchReport([regionId], effectiveCategory, monthlyBudgetKrw, homeLocation)
       .then((report) => {
         const candidate = report.candidates[0]
         setModal({
@@ -223,7 +229,7 @@ function App() {
     const { regionId, category: gridCategory } = gridOverlay
     setGridCell({ open: true, status: "loading", cellId })
     try {
-      const detail = await fetchGridCellDetail(regionId, gridCategory, cellId)
+      const detail = await fetchGridCellDetail(regionId, gridCategory, cellId, homeLocation)
       setGridCell({ open: true, status: "success", cellId, detail })
     } catch (err) {
       setGridCell({ open: true, status: "error", cellId, error: err.message })
@@ -234,6 +240,18 @@ function App() {
     setModal({ open: false })
     setGridOverlay(null)
     setGridCell({ open: false })
+  }
+
+  // 지도 클릭 한 번으로 집 위치를 지정한다 — DongMap이 isSettingHome=true일 때
+  // 행정동/격자 클릭 대신 이 콜백을 호출하도록 되어 있다(DongMap.jsx 참고).
+  function handleSetHomeLocation(lat, lng) {
+    setHomeLocation({ lat, lng })
+    setIsSettingHome(false)
+  }
+
+  function handleClearHomeLocation() {
+    setHomeLocation(null)
+    setIsSettingHome(false)
   }
 
   return (
@@ -282,6 +300,28 @@ function App() {
             onChange={(e) => setBudgetInput(e.target.value)}
             title="입력하면 이 지역 상권 규모 대비 예산이 감당 가능한 편인지 참고 문구를 함께 보여줍니다 (확정적 계산 아님)"
           />
+          {homeLocation ? (
+            <div className="home-location-control home-location-set">
+              <Home size={14} strokeWidth={2.25} aria-hidden="true" />
+              <span>집 위치 지정됨</span>
+              <button type="button" className="home-location-edit" onClick={() => setIsSettingHome(true)}>
+                변경
+              </button>
+              <button type="button" className="home-location-clear" onClick={handleClearHomeLocation} aria-label="집 위치 지우기">
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={`home-location-control ${isSettingHome ? "home-location-active" : ""}`}
+              onClick={() => setIsSettingHome((v) => !v)}
+              title="지도를 클릭해 우리 집 위치를 지정하면, 각 지역까지의 참고용 거리를 함께 보여드립니다"
+            >
+              <Home size={14} strokeWidth={2.25} aria-hidden="true" />
+              {isSettingHome ? "지도를 클릭하세요…" : "집 위치 지정"}
+            </button>
+          )}
           <button
             className="analyze-button"
             onClick={() => handleAnalyze()}
@@ -331,6 +371,9 @@ function App() {
             gridOverlay={gridOverlay}
             onGridCellClick={openGridCell}
             selectedCellId={gridCell.open ? gridCell.cellId : null}
+            isSettingHome={isSettingHome}
+            onSetHomeLocation={handleSetHomeLocation}
+            homeLocation={homeLocation}
           />
         </section>
 
@@ -396,6 +439,10 @@ function DataNoticeFooter() {
             작년 같은 기간(2024년 10~12월)을 비교한 것입니다 — 지금(2026년) 기준으로는 이미 7개월 지난 스냅샷이라
             "최근"이 실시간을 뜻하지는 않습니다. 격자 단위로는 제공하지 않으며, 최근 1년 이력이 없는 행정동(2025년
             초 신설·변경된 동 등)은 "데이터 부족"으로 표시됩니다.
+          </li>
+          <li>
+            "집에서 약 OOkm"는 지도에서 지정한 위치와 두 점 사이의 직선거리일 뿐, 실제 도로 경로·신호·정체는
+            반영하지 않습니다. 실시간 경로/교통 데이터가 없어 이동 시간은 별도로 안내하지 않습니다.
           </li>
         </ul>
       </details>

@@ -115,6 +115,10 @@ function GridCellDetailContent({ detail, regionId, category, onBack, onAlternati
         <p className="gauge-caption">행정동 내 상대 점수</p>
       </div>
 
+      {detail.home_distance && (
+        <p className="home-distance-note">🏠 집에서 약 {detail.home_distance.distance_km}km (직선거리, 참고용)</p>
+      )}
+
       <h3 className="modal-subheading">세부 지표</h3>
       <div className="breakdown-bars">
         {BREAKDOWN_LABELS.map(({ key, label }) => {
