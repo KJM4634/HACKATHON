@@ -1,7 +1,7 @@
 import { useState } from "react"
 import "./QueryBar.css"
 
-function QueryBar({ nlQuery, onSubmit }) {
+function QueryBar({ nlQuery, onSubmit, onCandidateClick }) {
   const [text, setText] = useState("")
 
   function submit() {
@@ -24,7 +24,23 @@ function QueryBar({ nlQuery, onSubmit }) {
       </button>
 
       {nlQuery.status === "clarification" && (
-        <div className="query-bar-notice query-bar-notice-clarify">{nlQuery.message}</div>
+        <div className="query-bar-notice query-bar-notice-clarify">
+          {nlQuery.message}
+          {nlQuery.candidates?.length >= 2 && (
+            <div className="query-bar-candidates">
+              {nlQuery.candidates.map((c) => (
+                <button
+                  key={c.region_id}
+                  type="button"
+                  className="query-bar-candidate-chip"
+                  onClick={() => onCandidateClick(c.region_id, c.행정동명, nlQuery.category)}
+                >
+                  {c.행정동명}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       {nlQuery.status === "success" && (
         <div className="query-bar-notice query-bar-notice-success">{nlQuery.message}</div>

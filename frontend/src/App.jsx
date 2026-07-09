@@ -119,30 +119,41 @@ function App() {
     }
   }
 
+  // 파악한 만큼은 항상 반영한다 — 모호하거나 실패해도 기존 드롭다운/검색으로 이어서
+  // 쓸 수 있도록 부분 결과를 그대로 채워준다. Gemini는 리프 카테고리(한식/중식/분식/
+  // 기타음식점 등)만 반환하므로, "음식점" 서브카테고리면 1차 탭도 같이 "음식점"으로
+  // 맞춰야 상단 탭 표시가 실제 선택과 어긋나지 않는다.
+  function applyParsedCategory(parsedCategory) {
+    if (parsedCategory && parsedCategory !== category) {
+      skipNextResetRef.current = true
+      if (FOOD_SUBCATEGORIES.includes(parsedCategory)) {
+        setTopCategory("음식점")
+        setFoodSubcategory(parsedCategory)
+      } else {
+        setTopCategory(parsedCategory)
+      }
+    }
+  }
+
   async function handleNaturalLanguageQuery(text) {
     setNlQuery({ status: "loading" })
     try {
       const parsed = await parseQuery(text)
 
-      // 파악한 만큼은 항상 반영한다 — 모호하거나 실패해도 기존 드롭다운/검색으로
-      // 이어서 쓸 수 있도록 부분 결과를 그대로 채워준다. Gemini는 리프 카테고리
-      // (한식/중식/분식/기타음식점 등)만 반환하므로, "음식점" 서브카테고리면 1차
-      // 탭도 같이 "음식점"으로 맞춰야 상단 탭 표시가 실제 선택과 어긋나지 않는다.
-      if (parsed.category && parsed.category !== category) {
-        skipNextResetRef.current = true
-        if (FOOD_SUBCATEGORIES.includes(parsed.category)) {
-          setTopCategory("음식점")
-          setFoodSubcategory(parsed.category)
-        } else {
-          setTopCategory(parsed.category)
-        }
-      }
+      applyParsedCategory(parsed.category)
       if (parsed.region_matches.length === 1) {
         setSearchQuery(parsed.region_matches[0].행정동명)
       }
 
       if (parsed.needs_clarification) {
-        setNlQuery({ status: "clarification", message: parsed.message })
+        // 지역이 2곳 이상으로 나오면(예: "서면" -> 부전1동/부전2동) 후보를 칩 버튼으로도
+        // 보여준다 — 검색창에 동 이름을 다시 타이핑하는 대신 바로 클릭해서 이어갈 수 있게.
+        setNlQuery({
+          status: "clarification",
+          message: parsed.message,
+          candidates: parsed.region_matches,
+          category: parsed.category,
+        })
         return
       }
 
@@ -157,6 +168,18 @@ function App() {
     } catch (err) {
       setNlQuery({ status: "error", message: err.message })
     }
+  }
+
+  // 모호함 안내에 뜬 후보 칩을 클릭했을 때 — 정확히 1곳으로 특정됐을 때와 동일한
+  // 흐름(카테고리 반영 + 검색창 채움 + 상세 화면 진입)으로 이어간다.
+  async function handleClarificationPick(regionId, regionName, pickedCategory) {
+    applyParsedCategory(pickedCategory)
+    setSearchQuery(regionName)
+    setNlQuery({
+      status: "success",
+      message: `${regionName}${pickedCategory ? ` · ${pickedCategory}` : ""}로 분석합니다.`,
+    })
+    await openRegionDetail(regionId, regionName, pickedCategory)
   }
 
   async function openRegionDetail(regionId, regionName, overrideCategory) {
@@ -296,7 +319,7 @@ function App() {
         </span>
       </div>
 
-      <QueryBar nlQuery={nlQuery} onSubmit={handleNaturalLanguageQuery} />
+      <QueryBar nlQuery={nlQuery} onSubmit={handleNaturalLanguageQuery} onCandidateClick={handleClarificationPick} />
 
       <main className="main-layout">
         <section className="map-area">

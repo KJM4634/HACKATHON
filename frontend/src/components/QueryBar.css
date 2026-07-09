@@ -79,3 +79,33 @@
   color: var(--status-critical);
   background: color-mix(in srgb, var(--status-critical) 12%, transparent);
 }
+
+.query-bar-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.query-bar-candidate-chip {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-warning);
+  background: var(--surface-1);
+  color: var(--status-warning);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+.query-bar-candidate-chip:hover {
+  background: color-mix(in srgb, var(--status-warning) 15%, var(--surface-1));
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.query-bar-candidate-chip:active {
+  transform: translateY(0) scale(0.97);
+}
