@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react"
-import { Coffee, MapPin, Scissors, ShoppingBag, UtensilsCrossed } from "lucide-react"
+import {
+  Coffee,
+  CookingPot,
+  MapPin,
+  MoreHorizontal,
+  Sandwich,
+  Scissors,
+  ShoppingBag,
+  Soup,
+  UtensilsCrossed,
+} from "lucide-react"
 import DongMap from "./components/DongMap"
 import AnalysisPanel from "./components/AnalysisPanel"
 import RegionDetailModal from "./components/RegionDetailModal"
@@ -8,14 +18,21 @@ import { fetchBulkScores, fetchRegions, fetchReport, parseQuery } from "./api"
 import { matchesRegionQuery } from "./regionAliases"
 import "./App.css"
 
-const CATEGORIES = ["카페", "음식점", "편의점", "미용실"]
-// 업종 문자열 자체는 백엔드/자연어 질의 파싱과 그대로 맞춰야 해서 바꾸지 않고,
-// 렌더링에만 쓰는 아이콘을 별도 맵으로 둔다.
-const CATEGORY_ICONS = { 카페: Coffee, 음식점: UtensilsCrossed, 편의점: ShoppingBag, 미용실: Scissors }
+// "음식점"은 4개 리프 카테고리(한식/중식/분식/기타음식점)를 묶는 1차 탭일 뿐이고,
+// 백엔드로 넘어가는 category 값은 항상 리프 값이다(카페/편의점/미용실과 동급) —
+// 조사 결과 일식·양식은 표본이 얇아 "기타음식점"에 흡수했다.
+const TOP_CATEGORIES = ["카페", "음식점", "편의점", "미용실"]
+const FOOD_SUBCATEGORIES = ["한식", "중식", "분식", "기타음식점"]
+const TOP_CATEGORY_ICONS = { 카페: Coffee, 음식점: UtensilsCrossed, 편의점: ShoppingBag, 미용실: Scissors }
+const FOOD_SUBCATEGORY_ICONS = { 한식: Soup, 중식: CookingPot, 분식: Sandwich, 기타음식점: MoreHorizontal }
 const TOP_N = 3
 
 function App() {
-  const [category, setCategory] = useState(CATEGORIES[0])
+  const [topCategory, setTopCategory] = useState(TOP_CATEGORIES[0])
+  const [foodSubcategory, setFoodSubcategory] = useState(FOOD_SUBCATEGORIES[0])
+  // 실제로 API에 넘기는 값은 항상 리프 카테고리 하나 — "음식점" 탭이 활성이면
+  // 그 아래 서브탭 선택값을 쓰고, 아니면 최상위 탭 값 그대로 쓴다.
+  const category = topCategory === "음식점" ? foodSubcategory : topCategory
   const [searchQuery, setSearchQuery] = useState("")
   const [regions, setRegions] = useState([]) // 검색 필터링용 행정동 목록(region_id -> 이름)
   const [analysis, setAnalysis] = useState({ status: "idle" })
@@ -95,10 +112,17 @@ function App() {
       const parsed = await parseQuery(text)
 
       // 파악한 만큼은 항상 반영한다 — 모호하거나 실패해도 기존 드롭다운/검색으로
-      // 이어서 쓸 수 있도록 부분 결과를 그대로 채워준다.
+      // 이어서 쓸 수 있도록 부분 결과를 그대로 채워준다. Gemini는 리프 카테고리
+      // (한식/중식/분식/기타음식점 등)만 반환하므로, "음식점" 서브카테고리면 1차
+      // 탭도 같이 "음식점"으로 맞춰야 상단 탭 표시가 실제 선택과 어긋나지 않는다.
       if (parsed.category && parsed.category !== category) {
         skipNextResetRef.current = true
-        setCategory(parsed.category)
+        if (FOOD_SUBCATEGORIES.includes(parsed.category)) {
+          setTopCategory("음식점")
+          setFoodSubcategory(parsed.category)
+        } else {
+          setTopCategory(parsed.category)
+        }
       }
       if (parsed.region_matches.length === 1) {
         setSearchQuery(parsed.region_matches[0].행정동명)
@@ -159,9 +183,9 @@ function App() {
         </span>
         <div className="topbar-controls">
           <div className="category-tabs" role="tablist" aria-label="업종 선택">
-            {CATEGORIES.map((c) => {
-              const Icon = CATEGORY_ICONS[c]
-              const active = c === category
+            {TOP_CATEGORIES.map((c) => {
+              const Icon = TOP_CATEGORY_ICONS[c]
+              const active = c === topCategory
               return (
                 <button
                   key={c}
@@ -169,7 +193,7 @@ function App() {
                   role="tab"
                   aria-selected={active}
                   className={`category-tab ${active ? "category-tab-active" : ""}`}
-                  onClick={() => setCategory(c)}
+                  onClick={() => setTopCategory(c)}
                 >
                   <Icon size={15} strokeWidth={2.25} aria-hidden="true" />
                   {c}
@@ -193,6 +217,33 @@ function App() {
           </button>
         </div>
       </header>
+
+      <div className={`subtab-strip ${topCategory === "음식점" ? "open" : ""}`}>
+        <span className="subtab-lead">음식점 &gt;</span>
+        <div className="subtabs" role="tablist" aria-label="음식점 서브카테고리 선택">
+          {FOOD_SUBCATEGORIES.map((sub) => {
+            const Icon = FOOD_SUBCATEGORY_ICONS[sub]
+            const active = sub === foodSubcategory
+            return (
+              <button
+                key={sub}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`subtab-btn ${active ? "subtab-btn-active" : ""}`}
+                onClick={() => setFoodSubcategory(sub)}
+              >
+                <Icon size={13} strokeWidth={2.25} aria-hidden="true" />
+                {sub}
+              </button>
+            )
+          })}
+        </div>
+        <span className="subtab-note">
+          수익성 점수는 4개 서브카테고리가 "외식업 통합 매출" 버킷을 공유합니다 (카페·음식점·주점 매출이 분리되어
+          있지 않음)
+        </span>
+      </div>
 
       <QueryBar nlQuery={nlQuery} onSubmit={handleNaturalLanguageQuery} />
 
@@ -239,10 +290,15 @@ function DataNoticeFooter() {
             접근성(대중교통 정류장·집객시설 근접도) 데이터가 없어 점수 산출에서 제외했고, 나머지 세 지표(배후수요·경쟁강도·수익성)
             가중치를 원래 비율대로 재분배했습니다.
           </li>
-          <li>카페·편의점·미용실 등 일부 업종은 폐업률을 계산할 표준 데이터가 없어, 경쟁강도는 동일업종 밀집도만으로 산정합니다.</li>
           <li>
-            수익성 점수는 카페·음식점은 '음식/주점' 매출 버킷(카페+음식점+주점 통합)을, 편의점은 '유통' 매출 버킷(소매 전체)을
-            근사값으로 사용합니다 — 업종별로 분리된 매출 데이터가 없습니다.
+            카페·편의점·미용실은 폐업률을 계산할 표준 데이터가 없고, 음식점 서브카테고리(한식/중식/분식/기타음식점)는 데이터는
+            있지만 해당 지역의 표본이 5건 미만이면 신뢰할 수 없어 제외합니다 — 두 경우 모두 경쟁강도는 동일업종 밀집도만으로
+            산정합니다.
+          </li>
+          <li>
+            수익성 점수는 카페와 음식점 서브카테고리(한식/중식/분식/기타음식점) 5개 모두 '음식/주점' 매출 버킷(카페+음식점+주점
+            통합)을, 편의점은 '유통' 매출 버킷(소매 전체)을 근사값으로 사용합니다 — 업종별로 분리된 매출 데이터가 없어 같은
+            지역이면 5개 카테고리의 수익성 숫자가 동일합니다.
           </li>
         </ul>
       </details>

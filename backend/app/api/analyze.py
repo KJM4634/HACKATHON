@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from app.alternatives import LOW_SCORE_THRESHOLD, find_alternatives
 from app.data_provider import get_data_provider
 from app.data_provider.base import DataProvider
-from app.data_provider.local.category_mapping import CATEGORY_TO_SANGGABU_KEYWORD
+from app.data_provider.local.category_mapping import ALL_CATEGORIES
 from app.llm.query_parser import parse_query
 from app.llm.report import generate_report
 from app.llm.strategy import generate_differentiation_strategy
@@ -23,7 +23,7 @@ from app.scoring import compute_score
 
 router = APIRouter(prefix="/api", tags=["analyze"])
 
-_KNOWN_CATEGORIES = list(CATEGORY_TO_SANGGABU_KEYWORD.keys())
+_KNOWN_CATEGORIES = ALL_CATEGORIES
 
 # (region_ids 정렬 튜플, category, include_alternatives) -> ReportResponse. 프로세스
 # 메모리에만 있는 캐시라 재시작하면 비워진다 — Gemini 무료 티어 일일 한도가 낮아서,

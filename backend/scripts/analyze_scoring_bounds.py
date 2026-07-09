@@ -41,10 +41,21 @@ def main():
     print("=== 업종별 경쟁업체수 (행정동당) ===")
     sanggabu = get_sanggabu_busan()
     all_dong = sanggabu["행정동코드"].unique()
-    for cat, keyword in {"카페": "커피", "음식점": "한식", "편의점": "편의점", "미용실": "미용업"}.items():
+    for cat, keyword in {"카페": "커피", "편의점": "편의점", "미용실": "미용업"}.items():
         matched = sanggabu[sanggabu["표준산업분류명"].str.contains(keyword, na=False)]
         counts = matched.groupby("행정동코드").size().reindex(all_dong, fill_value=0)
         print(f"[{cat}]", counts.quantile(PERCENTILES).to_dict())
+
+    print("--- 음식점 서브카테고리 (상권업종중분류명 정확매칭) ---")
+    food = sanggabu[sanggabu["상권업종대분류명"] == "음식"]
+    for cat, jungbunlyu in {"한식": "한식", "중식": "중식", "분식": "기타 간이"}.items():
+        matched = food[food["상권업종중분류명"] == jungbunlyu]
+        counts = matched.groupby("행정동코드").size().reindex(all_dong, fill_value=0)
+        print(f"[{cat}]", counts.quantile(PERCENTILES).to_dict())
+    exclude_other = {"한식", "중식", "기타 간이", "비알코올"}
+    other = food[~food["상권업종중분류명"].isin(exclude_other)]
+    counts = other.groupby("행정동코드").size().reindex(all_dong, fill_value=0)
+    print("[기타음식점]", counts.quantile(PERCENTILES).to_dict())
     print()
 
     print("=== 업종대분류별 매출(평균이용금액, 행정동당) ===")
@@ -54,20 +65,30 @@ def main():
         print(f"[{bucket}]", sub.quantile(PERCENTILES).to_dict())
     print()
 
-    print("=== 한식(일반음식점) 최근1년 폐업률 (행정동당, %) ===")
+    print("=== 음식점 서브카테고리 최근1년 폐업률 (행정동당, %, 표본 5건 미만 제외) ===")
+    MIN_SAMPLE = 5  # local_provider.py의 _MIN_CLOSURE_SAMPLE과 반드시 맞춰야 함
     df = get_restaurants_with_admin_dong()
-    busan = df[(df["시도명"] == "부산광역시") & (df["업태구분명"] == "한식") & df["행정동코드"].notna()].copy()
+    busan = df[(df["시도명"] == "부산광역시") & df["행정동코드"].notna()].copy()
     busan["폐업일자_dt"] = pd.to_datetime(busan["폐업일자"], errors="coerce")
     one_year_ago = datetime.now() - timedelta(days=365)
 
-    rows = []
-    for dong, g in busan.groupby("행정동코드"):
-        active = (g["영업상태명"] == "영업/정상").sum()
-        closed_recent = ((g["영업상태명"] == "폐업") & (g["폐업일자_dt"] >= one_year_ago)).sum()
-        if active + closed_recent == 0:
-            continue
-        rows.append(closed_recent / (active + closed_recent) * 100)
-    print(pd.Series(rows).quantile(PERCENTILES))
+    def _closure_rates(subset: pd.DataFrame) -> pd.Series:
+        rows = []
+        for _, g in subset.groupby("행정동코드"):
+            active = (g["영업상태명"] == "영업/정상").sum()
+            closed_recent = ((g["영업상태명"] == "폐업") & (g["폐업일자_dt"] >= one_year_ago)).sum()
+            if active + closed_recent < MIN_SAMPLE:
+                continue
+            rows.append(closed_recent / (active + closed_recent) * 100)
+        return pd.Series(rows)
+
+    for cat, uptae in {"한식": "한식", "중식": "중국식", "분식": "분식"}.items():
+        print(f"[{cat}]")
+        print(_closure_rates(busan[busan["업태구분명"] == uptae]).quantile(PERCENTILES))
+
+    print("[기타음식점]")
+    other = busan[~busan["업태구분명"].isin({"한식", "중국식", "분식"})]
+    print(_closure_rates(other).quantile(PERCENTILES))
 
 
 if __name__ == "__main__":

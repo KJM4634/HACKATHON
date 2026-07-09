@@ -48,23 +48,27 @@ def test_population_is_gu_level_estimate(provider):
     assert nampo_pop.총인구수 < haeundae_pop.총인구수
 
 
-def test_closure_data_available_only_for_음식점(provider):
+def test_closure_data_available_for_food_subcategories_not_cafe_convenience_salon(provider):
+    """카페/편의점/미용실은 구조적으로 폐업 데이터가 없고, 음식점 서브카테고리
+    (한식/중식/분식/기타음식점)는 표본이 충분한 지역(서면)에서는 있어야 한다."""
     for category in ["카페", "편의점", "미용실"]:
         closure = provider.get_closure_stats(_DEMO_REGIONS["서면"], category)
         assert closure.data_available is False
 
-    closure = provider.get_closure_stats(_DEMO_REGIONS["서면"], "음식점")
-    assert closure.data_available is True
-    assert closure.영업중_점포수 > 0
+    for category in ["한식", "중식", "분식", "기타음식점"]:
+        closure = provider.get_closure_stats(_DEMO_REGIONS["서면"], category)
+        assert closure.data_available is True, category
+        assert closure.영업중_점포수 > 0
 
 
 def test_competitor_counts_match_known_values(provider):
-    """2026-07-08 실측 검증값 (data_inventory.md 조사 결과와 동일해야 함)."""
+    """2026-07-08 실측 검증값. 음식점 서브카테고리는 상권업종중분류명 정확매칭 기준
+    (표준산업분류명 keyword-contains와는 값이 다를 수 있음 — 조사 결과 참고)."""
     expected = {
-        "서면": {"카페": 133, "음식점": 507, "편의점": 53, "미용실": 298},
-        "남포동": {"카페": 40, "음식점": 220, "편의점": 11, "미용실": 76},
-        "해운대": {"카페": 77, "음식점": 241, "편의점": 39, "미용실": 91},
-        "광안리": {"카페": 76, "음식점": 172, "편의점": 18, "미용실": 120},
+        "서면": {"카페": 133, "한식": 460, "중식": 42, "분식": 139, "기타음식점": 525, "편의점": 53, "미용실": 298},
+        "남포동": {"카페": 40, "한식": 217, "중식": 8, "분식": 29, "기타음식점": 138, "편의점": 11, "미용실": 76},
+        "해운대": {"카페": 77, "한식": 223, "중식": 14, "분식": 116, "기타음식점": 180, "편의점": 39, "미용실": 91},
+        "광안리": {"카페": 76, "한식": 168, "중식": 9, "분식": 97, "기타음식점": 138, "편의점": 18, "미용실": 120},
     }
     for name, region_id in _DEMO_REGIONS.items():
         for category, count in expected[name].items():
@@ -73,7 +77,7 @@ def test_competitor_counts_match_known_values(provider):
 
 
 @pytest.mark.parametrize("name,region_id", list(_DEMO_REGIONS.items()))
-@pytest.mark.parametrize("category", ["카페", "음식점", "편의점", "미용실"])
+@pytest.mark.parametrize("category", ["카페", "한식", "중식", "분식", "기타음식점", "편의점", "미용실"])
 def test_analyze_pipeline_produces_valid_score(provider, name, region_id, category):
     market_data = provider.get_market_data(region_id, category)
     result = compute_score(market_data, category)
@@ -82,12 +86,12 @@ def test_analyze_pipeline_produces_valid_score(provider, name, region_id, catego
     assert result.is_placeholder is False
 
 
-def test_busiest_areas_score_higher_than_quiet_areas_for_음식점(provider):
-    """번화가(서면/해운대)가 상대적으로 조용한 곳(남포동)보다 음식점 총점이 높아야 한다."""
+def test_busiest_areas_score_higher_than_quiet_areas_for_한식(provider):
+    """번화가(서면/해운대)가 상대적으로 조용한 곳(남포동)보다 한식 총점이 높아야 한다."""
 
     def total(name):
-        md = provider.get_market_data(_DEMO_REGIONS[name], "음식점")
-        return compute_score(md, "음식점").total_score
+        md = provider.get_market_data(_DEMO_REGIONS[name], "한식")
+        return compute_score(md, "한식").total_score
 
     assert total("해운대") > total("남포동")
     assert total("서면") > total("남포동")

@@ -137,7 +137,7 @@ def test_different_category_is_a_different_cache_entry(monkeypatch):
     monkeypatch.setattr(analyze_module, "generate_report", _fake_generate_report)
 
     analyze_module.report(ReportRequest(region_ids=["1000000000"], category="카페"))
-    analyze_module.report(ReportRequest(region_ids=["1000000000"], category="음식점"))
+    analyze_module.report(ReportRequest(region_ids=["1000000000"], category="한식"))
 
     assert call_count == 2
 

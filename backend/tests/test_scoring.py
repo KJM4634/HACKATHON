@@ -52,7 +52,7 @@ def _market_data(
 def test_weights_are_redistributed_after_dropping_accessibility():
     """접근성 데이터가 없으니 0.35:0.30:0.15 비율을 유지한 채 합 1.0으로 재분배돼야 한다."""
     md = _market_data(50_000, 200_000, 50, True, 5.0, "음식/주점", 100_000_000)
-    result = compute_score(md, "음식점")
+    result = compute_score(md, "한식")
 
     weights = result.weights_used
     assert weights.접근성 == 0.0
@@ -66,7 +66,7 @@ def test_weights_are_redistributed_after_dropping_accessibility():
 
 def test_total_score_matches_weighted_breakdown():
     md = _market_data(50_000, 200_000, 50, True, 5.0, "음식/주점", 100_000_000)
-    result = compute_score(md, "음식점")
+    result = compute_score(md, "한식")
     b, w = result.breakdown, result.weights_used
 
     expected = round(b.배후수요 * w.배후수요 + b.경쟁강도 * w.경쟁강도 + b.수익성 * w.수익성)
@@ -78,7 +78,7 @@ def test_missing_closure_data_falls_back_to_density_only():
     with_closure = _market_data(50_000, 200_000, 50, True, 20.0, "음식/주점", 100_000_000)
     without_closure = _market_data(50_000, 200_000, 50, False, 0.0, "음식/주점", 100_000_000)
 
-    result_with = compute_score(with_closure, "음식점")
+    result_with = compute_score(with_closure, "한식")
     result_without = compute_score(without_closure, "카페")
 
     # 밀집도(50개)는 동일하지만 폐업률 반영 여부가 달라 경쟁강도 점수가 달라야 함
@@ -90,19 +90,19 @@ def test_higher_visits_and_population_score_higher_demand():
     low = _market_data(10_000, 40_000, 30, True, 5.0, "음식/주점", 50_000_000)
     high = _market_data(200_000, 350_000, 30, True, 5.0, "음식/주점", 50_000_000)
 
-    assert compute_score(high, "음식점").breakdown.배후수요 > compute_score(low, "음식점").breakdown.배후수요
+    assert compute_score(high, "한식").breakdown.배후수요 > compute_score(low, "한식").breakdown.배후수요
 
 
 def test_more_competitors_lowers_competition_score():
     sparse = _market_data(50_000, 200_000, 5, True, 5.0, "음식/주점", 50_000_000)
     crowded = _market_data(50_000, 200_000, 250, True, 5.0, "음식/주점", 50_000_000)
 
-    assert compute_score(crowded, "음식점").breakdown.경쟁강도 < compute_score(sparse, "음식점").breakdown.경쟁강도
+    assert compute_score(crowded, "한식").breakdown.경쟁강도 < compute_score(sparse, "한식").breakdown.경쟁강도
 
 
 def test_missing_revenue_bucket_defaults_to_midpoint():
     md = _market_data(50_000, 200_000, 50, True, 5.0, "다른버킷", 100_000_000)
-    result = compute_score(md, "음식점")
+    result = compute_score(md, "한식")
 
     assert result.breakdown.수익성 == 50
     assert any("수익성 점수를 50" in note for note in result.data_limitations)
@@ -113,7 +113,7 @@ def test_scores_are_clamped_to_0_100():
     extreme_high = _market_data(10_000_000, 10_000_000, 10_000, True, 100.0, "음식/주점", 10_000_000_000)
 
     for md in (extreme_low, extreme_high):
-        result = compute_score(md, "음식점")
+        result = compute_score(md, "한식")
         assert 0 <= result.total_score <= 100
         assert 0 <= result.breakdown.배후수요 <= 100
         assert 0 <= result.breakdown.경쟁강도 <= 100

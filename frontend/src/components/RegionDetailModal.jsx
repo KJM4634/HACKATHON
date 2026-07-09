@@ -145,7 +145,7 @@ function RegionDetailContent({ candidate, reportText, isFallback, category, onAl
       )}
       <p className="report-text">{reportText}</p>
 
-      {category === "음식점" && trackA?.available && (
+      {category === "한식" && trackA?.available && (
         <details className="track-a-section">
           <summary>실험적 예측 모델 (참고용)</summary>
           <div className="track-a-body">

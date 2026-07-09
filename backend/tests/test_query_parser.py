@@ -22,7 +22,7 @@ class _FakeClient:
 
 
 _REGION_NAMES = ["부산진구 부전1동", "부산진구 부전2동", "부산진구 전포동", "중구 남포동"]
-_CATEGORIES = ["카페", "음식점", "편의점", "미용실"]
+_CATEGORIES = ["카페", "한식", "중식", "분식", "기타음식점", "편의점", "미용실"]
 
 
 def _mock_gemini(monkeypatch, response_dict):
